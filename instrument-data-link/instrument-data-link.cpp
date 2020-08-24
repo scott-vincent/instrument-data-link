@@ -16,14 +16,16 @@ HANDLE hSimConnect = NULL;
 void server();
 std::thread serverThread(server);
 
-struct Struct1
+struct SimVars
 {
-    char    title[256];
-    double  kohlsmann;
-    double  altitude;
-    double  latitude;
-    double  longitude;
-};
+    double kohlsmann = 29.92;
+    double altitude = 0;
+    double latitude = 123.45;
+    double longitude = 234.56;
+    char title[256] = "A title";
+} simVars;
+
+SimVars* pSimVars = &simVars;
 
 enum EVENT_ID {
     EVENT_SIM_START,
@@ -68,10 +70,11 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
         case REQUEST_1:
         {
             DWORD ObjectID = pObjData->dwObjectID;
-            Struct1* pS = (Struct1*)&pObjData->dwData;
-            if (SUCCEEDED(StringCbLengthA(&pS->title[0], sizeof(pS->title), NULL))) // security check
+            pSimVars = (SimVars*)&pObjData->dwData;
+            if (SUCCEEDED(StringCbLengthA(&pSimVars->title[0], sizeof(pSimVars->title), NULL))) // security check
             {
-                printf("\nObjectID=%d  Title=\"%s\"\nLat=%f  Lon=%f  Alt=%f  Kohlsman=%.2f", ObjectID, pS->title, pS->latitude, pS->longitude, pS->altitude, pS->kohlsmann);
+                printf("\nObjectID=%d  Lat=%f  Lon=%f  Alt=%f  Kohlsman=%.2f  Title=\"%s\"", ObjectID,
+                    pSimVars->latitude, pSimVars->longitude, pSimVars->altitude, pSimVars->kohlsmann, pSimVars->title);
             }
             break;
         }
@@ -96,9 +99,6 @@ void addDataDefs()
 {
     //HRESULT hr;
 
-    if (!SUCCEEDED(SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, "Title", NULL, SIMCONNECT_DATATYPE_STRING256))) {
-        printf("Data def failed: Title\n");
-    }
     if (!SUCCEEDED(SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, "Kohlsman setting hg", "inHg"))) {
         printf("Data def failed: kohlsman\n");
     }
@@ -110,6 +110,9 @@ void addDataDefs()
     }
     if (!SUCCEEDED(SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, "Plane Longitude", "degrees"))) {
         printf("Data def failed: Longitude\n");
+    }
+    if (!SUCCEEDED(SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, "Title", NULL, SIMCONNECT_DATATYPE_STRING256))) {
+        printf("Data def failed: Title\n");
     }
 }
 
@@ -163,7 +166,6 @@ void server()
 
     char buff[1024];
     int active = -1;
-    int intData = 0;
     int bytes;
 
     while (!quit) {
@@ -182,8 +184,7 @@ void server()
                 }
 
                 // Send latest data to the client that polled us
-                intData++;
-                bytes = sendto(sockfd, (char *)&intData, 4, 0, (SOCKADDR*)&senderAddr, addrSize);
+                bytes = sendto(sockfd, (char *)pSimVars, sizeof(SimVars), 0, (SOCKADDR*)&senderAddr, addrSize);
                 if (bytes <= 0) {
                     bytes = SOCKET_ERROR;
                 }
