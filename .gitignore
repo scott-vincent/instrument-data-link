@@ -1,0 +1,7 @@
+.git
+.vs
+packages
+**/debug
+**/release
+**/x64
+**/SimConnect
