@@ -2,47 +2,38 @@
 #include <tchar.h>
 #include <stdio.h>
 #include <thread>
+#include "simvarDefs.h"
 #include "SimConnect.h"
-#include <strsafe.h>
 
 // Data will be served on this port
 const int Port = 52020;
 
-bool connected = false;
 bool quit = false;
 HANDLE hSimConnect = NULL;
+extern const char* SimVarDefs[][2];
 
 // Create server thread
 void server();
 std::thread serverThread(server);
 
-struct SimVars
-{
-    double kohlsmann = 29.92;
-    double altitude = 0;
-    double latitude = 123.45;
-    double longitude = 234.56;
-    char title[256] = "A title";
-} simVars;
-
-SimVars* pSimVars = &simVars;
+SimVars simVars;
+void* varStart = &simVars + sizeof(double);
+int varSize = sizeof(SimVars) - sizeof(double);
 
 enum EVENT_ID {
-    EVENT_SIM_START,
+    EVENT_SIM_START
 };
 
 enum DATA_DEFINE_ID {
-    DEFINITION_1,
+    DEFINITION_1
 };
 
 enum DATA_REQUEST_ID {
-    REQUEST_1,
+    REQUEST_1
 };
 
 void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pContext)
 {
-    HRESULT hr;
-
     switch (pData->dwID)
     {
     case SIMCONNECT_RECV_ID_EVENT:
@@ -53,8 +44,11 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
         {
         case EVENT_SIM_START:
             printf("Sim started\n");
+
             // Now the sim is running, request information on the user aircraft
-            hr = SimConnect_RequestDataOnSimObjectType(hSimConnect, REQUEST_1, DEFINITION_1, 0, SIMCONNECT_SIMOBJECT_TYPE_USER);
+            if (SimConnect_RequestDataOnSimObjectType(hSimConnect, REQUEST_1, DEFINITION_1, 0, SIMCONNECT_SIMOBJECT_TYPE_USER) < 0) {
+                printf("Failed to request data from Flight Sim\n");
+            }
             break;
         }
 
@@ -70,12 +64,12 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
         case REQUEST_1:
         {
             DWORD ObjectID = pObjData->dwObjectID;
-            pSimVars = (SimVars*)&pObjData->dwData;
-            if (SUCCEEDED(StringCbLengthA(&pSimVars->title[0], sizeof(pSimVars->title), NULL))) // security check
-            {
-                printf("\nObjectID=%d  Lat=%f  Lon=%f  Alt=%f  Kohlsman=%.2f  Title=\"%s\"", ObjectID,
-                    pSimVars->latitude, pSimVars->longitude, pSimVars->altitude, pSimVars->kohlsmann, pSimVars->title);
-            }
+            memcpy(varStart, &pObjData->dwData, varSize);
+
+            printf("ObjectID=%d  Lat=%f  Lon=%f  Alt=%f  Kohlsman=%.2f  Title=\"%s\"\n",
+                ObjectID, simVars.kohlsmann, simVars.altitude, simVars.latitude,
+                simVars.longitude, simVars.title);
+
             break;
         }
         }
@@ -90,40 +84,41 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
     }
 
     default:
-        printf("\nReceived id: %d", pData->dwID);
+        printf("Received unknown id: %d\n", pData->dwID);
         break;
     }
 }
 
 void addDataDefs()
 {
-    //HRESULT hr;
+    for (int i = 0;; i++) {
+        if (SimVarDefs[i][0] == NULL) {
+            break;
+        }
 
-    if (!SUCCEEDED(SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, "Kohlsman setting hg", "inHg"))) {
-        printf("Data def failed: kohlsman\n");
-    }
-    if (!SUCCEEDED(SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, "Plane Altitude", "feet"))) {
-        printf("Data def failed: Altitude\n");
-    }
-    if (!SUCCEEDED(SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, "Plane Latitude", "degrees"))) {
-        printf("Data def failed: Latitude\n");
-    }
-    if (!SUCCEEDED(SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, "Plane Longitude", "degrees"))) {
-        printf("Data def failed: Longitude\n");
-    }
-    if (!SUCCEEDED(SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, "Title", NULL, SIMCONNECT_DATATYPE_STRING256))) {
-        printf("Data def failed: Title\n");
+        if (SimVarDefs[i][1] == NULL) {
+            // Add string
+            if (SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, SimVarDefs[i][0], NULL, SIMCONNECT_DATATYPE_STRING256) < 0) {
+                printf("Data def failed: %s (string)\n", SimVarDefs[i][0]);
+            }
+        }
+        else if (strcmp(SimVarDefs[i][1], "todo") != 0) {
+            // Add double (float64)
+            if (SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, SimVarDefs[i][0], SimVarDefs[i][1]) < 0) {
+                printf("Data def failed: %s, %s\n", SimVarDefs[i][0], SimVarDefs[i][1]);
+            }
+        }
     }
 }
 
 void subscribeEvents()
 {
-    //HRESULT hr;
-
     // Request an event when the simulation starts
-    if (!SUCCEEDED(SimConnect_SubscribeToSystemEvent(hSimConnect, EVENT_SIM_START, "SimStart"))) {
+    if (SimConnect_SubscribeToSystemEvent(hSimConnect, EVENT_SIM_START, "SimStart") < 0) {
         printf("Subscribe event failed: SimStart\n");
     }
+
+    printf("Waiting for Sim to start\n");
 }
 
 void server()
@@ -161,10 +156,11 @@ void server()
     int addrSize = sizeof(senderAddr);
 
     timeval timeout;
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 500000;
 
-    char buff[1024];
+    long dataSize = sizeof(SimVars);
+    long requestedSize;
     int active = -1;
     int bytes;
 
@@ -176,15 +172,24 @@ void server()
         // Wait for instrument panel to poll (non-blocking, 1 second timeout)
         int sel = select(FD_SETSIZE, &fds, 0, 0, &timeout);
         if (sel > 0) {
-            bytes = recvfrom(sockfd, buff, 1024, 0, (SOCKADDR*)&senderAddr, &addrSize);
+            bytes = recvfrom(sockfd, (char *)&requestedSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, &addrSize);
             if (bytes > 0) {
                 if (active != 1) {
                     printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
                     active = 1;
                 }
 
-                // Send latest data to the client that polled us
-                bytes = sendto(sockfd, (char *)pSimVars, sizeof(SimVars), 0, (SOCKADDR*)&senderAddr, addrSize);
+                if (requestedSize == dataSize) {
+                    // Send latest data to the client that polled us
+                    bytes = sendto(sockfd, (char*)&simVars, dataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+                }
+                else {
+                    // Data size mismatch
+                    bytes = sendto(sockfd, (char*)&dataSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, addrSize);
+                    printf("Client at %s requested %ld bytes instead of %ld bytes\n",
+                        inet_ntoa(senderAddr.sin_addr), requestedSize, dataSize);
+                }
+
                 if (bytes <= 0) {
                     bytes = SOCKET_ERROR;
                 }
@@ -233,20 +238,22 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
     Sleep(100);
 
     printf("Searching for local MS FS2020...\n");
+    simVars.connected = 0;
+
     while (!quit)
     {
-        if (!connected) {
+        if (!simVars.connected) {
             SimConnect_Open(&hSimConnect, "Request Data", NULL, 0, 0, 0);
 
             if (hSimConnect) {
-                printf("\nConnected");
+                printf("Connected to FS2020\n");
                 addDataDefs();
                 subscribeEvents();
-                connected = true;
+                simVars.connected = 1;
             }
         }
 
-        if (connected) {
+        if (simVars.connected) {
             SimConnect_CallDispatch(hSimConnect, MyDispatchProcRD, NULL);
         }
 
