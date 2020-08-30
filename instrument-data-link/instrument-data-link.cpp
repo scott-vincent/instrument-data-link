@@ -17,59 +17,72 @@ void server();
 std::thread serverThread(server);
 
 SimVars simVars;
-void* varStart = &simVars + sizeof(double);
-int varSize = sizeof(SimVars) - sizeof(double);
+double *varStart = (double *)&simVars + 1;
+int varSize = 0;
 
 enum EVENT_ID {
-    EVENT_SIM_START
+    SIM_START
 };
 
-enum DATA_DEFINE_ID {
-    DEFINITION_1
+enum DEFINITION_ID {
+    DEF_ID
 };
 
-enum DATA_REQUEST_ID {
-    REQUEST_1
+enum REQUEST_ID {
+    REQ_ID
 };
 
 void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pContext)
 {
     switch (pData->dwID)
     {
+    case SIMCONNECT_RECV_ID_OPEN:
+    {
+        printf("Received id: OPEN\n");
+        break;
+    }
+
     case SIMCONNECT_RECV_ID_EVENT:
     {
         SIMCONNECT_RECV_EVENT* evt = (SIMCONNECT_RECV_EVENT*)pData;
 
         switch (evt->uEventID)
         {
-        case EVENT_SIM_START:
-            printf("Sim started\n");
+        case SIM_START:
+        {
+            printf("Received Sim Start event\n");
 
-            // Now the sim is running, request information on the user aircraft
-            if (SimConnect_RequestDataOnSimObjectType(hSimConnect, REQUEST_1, DEFINITION_1, 0, SIMCONNECT_SIMOBJECT_TYPE_USER) < 0) {
-                printf("Failed to request data from Flight Sim\n");
-            }
+            //// Now the sim is running, request information on the user aircraft
+            //if (SimConnect_RequestDataOnSimObjectType(hSimConnect, REQ_ID, DEF_ID, 0, SIMCONNECT_SIMOBJECT_TYPE_USER) < 0) {
+            //    printf("Failed to request data from MS FS2020\n");
+            //}
             break;
+        }
+
+        default:
+        {
+            printf("Unknown event id: %ld\n", evt->uEventID);
+            break;
+        }
         }
 
         break;
     }
 
-    case SIMCONNECT_RECV_ID_SIMOBJECT_DATA_BYTYPE:
+    case SIMCONNECT_RECV_ID_SIMOBJECT_DATA:
     {
-        SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE* pObjData = (SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE*)pData;
+        SIMCONNECT_RECV_SIMOBJECT_DATA* pObjData = (SIMCONNECT_RECV_SIMOBJECT_DATA*)pData;
 
         switch (pObjData->dwRequestID)
         {
-        case REQUEST_1:
+        case REQ_ID:
         {
-            DWORD ObjectID = pObjData->dwObjectID;
             memcpy(varStart, &pObjData->dwData, varSize);
-
-            printf("ObjectID=%d  Lat=%f  Lon=%f  Alt=%f  Kohlsman=%.2f  Title=\"%s\"\n",
-                ObjectID, simVars.kohlsmann, simVars.altitude, simVars.latitude,
-                simVars.longitude, simVars.title);
-
+            break;
+        }
+        default:
+        {
+            printf("Unknown request id: %ld\n", pObjData->dwRequestID);
             break;
         }
         }
@@ -84,7 +97,7 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
     }
 
     default:
-        printf("Received unknown id: %d\n", pData->dwID);
+        printf("Unknown id: %d\n", pData->dwID);
         break;
     }
 }
@@ -98,14 +111,20 @@ void addDataDefs()
 
         if (SimVarDefs[i][1] == NULL) {
             // Add string
-            if (SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, SimVarDefs[i][0], NULL, SIMCONNECT_DATATYPE_STRING256) < 0) {
+            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_ID, SimVarDefs[i][0], NULL, SIMCONNECT_DATATYPE_STRING256) < 0) {
                 printf("Data def failed: %s (string)\n", SimVarDefs[i][0]);
+            }
+            else {
+                varSize += 256;
             }
         }
         else if (strcmp(SimVarDefs[i][1], "todo") != 0) {
             // Add double (float64)
-            if (SimConnect_AddToDataDefinition(hSimConnect, DEFINITION_1, SimVarDefs[i][0], SimVarDefs[i][1]) < 0) {
+            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_ID, SimVarDefs[i][0], SimVarDefs[i][1]) < 0) {
                 printf("Data def failed: %s, %s\n", SimVarDefs[i][0], SimVarDefs[i][1]);
+            }
+            else {
+                varSize += sizeof(double);
             }
         }
     }
@@ -114,11 +133,74 @@ void addDataDefs()
 void subscribeEvents()
 {
     // Request an event when the simulation starts
-    if (SimConnect_SubscribeToSystemEvent(hSimConnect, EVENT_SIM_START, "SimStart") < 0) {
+    if (SimConnect_SubscribeToSystemEvent(hSimConnect, SIM_START, "SimStart") < 0) {
         printf("Subscribe event failed: SimStart\n");
     }
+}
 
-    printf("Waiting for Sim to start\n");
+void cleanUp()
+{
+    if (hSimConnect) {
+        if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_ID, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_NEVER, 0, 0, 0, 0) < 0) {
+            printf("Failed to stop requesting data\n");
+        }
+
+        printf("Disconnecting from MS FS2020\n");
+        SimConnect_Close(hSimConnect);
+    }
+
+    if (!quit) {
+        printf("Stopping server\n");
+        quit = true;
+    }
+
+    // Wait for server to quit
+    serverThread.join();
+
+    WSACleanup();
+    printf("Finished\n");
+}
+
+int __cdecl _tmain(int argc, _TCHAR* argv[])
+{
+    // Yield so server can start
+    Sleep(100);
+
+    printf("Searching for local MS FS2020...\n");
+    simVars.connected = 0;
+
+    HRESULT result;
+
+    while (!quit)
+    {
+        if (simVars.connected) {
+            result = SimConnect_CallDispatch(hSimConnect, MyDispatchProcRD, NULL);
+            if (result != 0) {
+                printf("Disconnected from MS FS2020\n");
+                simVars.connected = 0;
+                printf("Searching for local MS FS2020...\n");
+            }
+        }
+        else {
+            result = SimConnect_Open(&hSimConnect, "Instrument Data Link", NULL, 0, 0, 0);
+            if (result == 0) {
+                printf("Connected to MS FS2020\n");
+                addDataDefs();
+                subscribeEvents();
+                simVars.connected = 1;
+
+                // Start requesting data
+                if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_ID, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_VISUAL_FRAME, 0, 0, 0, 0) < 0) {
+                    printf("Failed to start requesting data\n");
+                }
+            }
+        }
+
+        Sleep(10);
+    }
+
+    cleanUp();
+    return 0;
 }
 
 void server()
@@ -172,7 +254,7 @@ void server()
         // Wait for instrument panel to poll (non-blocking, 1 second timeout)
         int sel = select(FD_SETSIZE, &fds, 0, 0, &timeout);
         if (sel > 0) {
-            bytes = recvfrom(sockfd, (char *)&requestedSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, &addrSize);
+            bytes = recvfrom(sockfd, (char*)&requestedSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, &addrSize);
             if (bytes > 0) {
                 if (active != 1) {
                     printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
@@ -211,55 +293,4 @@ void server()
     closesocket(sockfd);
 
     printf("Server stopped\n");
-}
-
-void cleanUp()
-{
-    printf("Disconnecting from MS FS2020\n");
-    if (hSimConnect) {
-        SimConnect_Close(hSimConnect);
-    }
-
-    if (!quit) {
-        printf("Stopping server\n");
-        quit = true;
-    }
-
-    // Wait for server to quit
-    serverThread.join();
-
-    WSACleanup();
-    printf("Finished\n");
-}
-
-int __cdecl _tmain(int argc, _TCHAR* argv[])
-{
-    // Yield so server can start
-    Sleep(100);
-
-    printf("Searching for local MS FS2020...\n");
-    simVars.connected = 0;
-
-    while (!quit)
-    {
-        if (!simVars.connected) {
-            SimConnect_Open(&hSimConnect, "Request Data", NULL, 0, 0, 0);
-
-            if (hSimConnect) {
-                printf("Connected to FS2020\n");
-                addDataDefs();
-                subscribeEvents();
-                simVars.connected = 1;
-            }
-        }
-
-        if (simVars.connected) {
-            SimConnect_CallDispatch(hSimConnect, MyDispatchProcRD, NULL);
-        }
-
-        Sleep(10);
-    }
-
-    cleanUp();
-    return 0;
 }
