@@ -21,7 +21,8 @@ double *varStart = (double *)&simVars + 1;
 int varSize = 0;
 
 enum EVENT_ID {
-    SIM_START
+    SIM_START,
+    SIM_STOP
 };
 
 enum DEFINITION_ID {
@@ -36,12 +37,6 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
 {
     switch (pData->dwID)
     {
-    case SIMCONNECT_RECV_ID_OPEN:
-    {
-        printf("Received id: OPEN\n");
-        break;
-    }
-
     case SIMCONNECT_RECV_ID_EVENT:
     {
         SIMCONNECT_RECV_EVENT* evt = (SIMCONNECT_RECV_EVENT*)pData;
@@ -50,12 +45,11 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
         {
         case SIM_START:
         {
-            printf("Received Sim Start event\n");
+            break;
+        }
 
-            //// Now the sim is running, request information on the user aircraft
-            //if (SimConnect_RequestDataOnSimObjectType(hSimConnect, REQ_ID, DEF_ID, 0, SIMCONNECT_SIMOBJECT_TYPE_USER) < 0) {
-            //    printf("Failed to request data from MS FS2020\n");
-            //}
+        case SIM_STOP:
+        {
             break;
         }
 
@@ -95,10 +89,6 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
         quit = true;
         break;
     }
-
-    default:
-        printf("Unknown id: %d\n", pData->dwID);
-        break;
     }
 }
 
@@ -133,9 +123,13 @@ void addDataDefs()
 void subscribeEvents()
 {
     // Request an event when the simulation starts
-    if (SimConnect_SubscribeToSystemEvent(hSimConnect, SIM_START, "SimStart") < 0) {
-        printf("Subscribe event failed: SimStart\n");
-    }
+    //if (SimConnect_SubscribeToSystemEvent(hSimConnect, SIM_START, "SimStart") < 0) {
+    //    printf("Subscribe event failed: SimStart\n");
+    //}
+
+    //if (SimConnect_SubscribeToSystemEvent(hSimConnect, SIM_STOP, "SimStop") < 0) {
+    //    printf("Subscribe event failed: SimStop\n");
+    //}
 }
 
 void cleanUp()
@@ -171,6 +165,7 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
 
     HRESULT result;
 
+    int retryDelay = 0;
     while (!quit)
     {
         if (simVars.connected) {
@@ -180,6 +175,9 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
                 simVars.connected = 0;
                 printf("Searching for local MS FS2020...\n");
             }
+        }
+        else if (retryDelay > 0) {
+            retryDelay--;
         }
         else {
             result = SimConnect_Open(&hSimConnect, "Instrument Data Link", NULL, 0, 0, 0);
@@ -193,6 +191,9 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
                 if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_ID, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_VISUAL_FRAME, 0, 0, 0, 0) < 0) {
                     printf("Failed to start requesting data\n");
                 }
+            }
+            else {
+                retryDelay = 200;
             }
         }
 
