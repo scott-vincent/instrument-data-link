@@ -26,6 +26,7 @@ struct SimVars
     double dcVolts = 23.7;
     double dcTempC = 26.2;
     double rpmEngine = 0;
+    double rpmPercent = 0;
     double rpmElapsedTime = 0;
     double fuelLeft = 0;
     double fuelRight = 0;
@@ -47,8 +48,8 @@ struct SimVars
     double com2Standby = 124.850;
     double nav2Freq = 110.50;
     double nav2Standby = 113.90;
-    double adfFreq = 394.0;
-    double adfStandby = 368.0;
+    double adfFreq = 394;
+    double adfStandby = 368;
 };
 
 #endif // _SIMVARDEFS_H_

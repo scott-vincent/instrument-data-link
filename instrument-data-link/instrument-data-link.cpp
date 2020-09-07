@@ -72,6 +72,7 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
         case REQ_ID:
         {
             memcpy(varStart, &pObjData->dwData, varSize);
+            //printf("Rpm Percent: %f\n", simVars.rpmPercent);
             break;
         }
         default:
