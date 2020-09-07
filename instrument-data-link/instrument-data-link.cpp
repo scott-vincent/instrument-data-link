@@ -72,7 +72,8 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
         case REQ_ID:
         {
             memcpy(varStart, &pObjData->dwData, varSize);
-            //printf("Rpm Percent: %f\n", simVars.rpmPercent);
+            //printf("Tail Number: %s   Call Sign: %s %s   Heavy: %.0f   Aircraft: %s\n",
+            //    simVars.atcTailNumber, simVars.atcCallSign, simVars.atcFlightNumber, simVars.atcHeavy, simVars.aircraft);
             break;
         }
         default:
@@ -100,16 +101,28 @@ void addDataDefs()
             break;
         }
 
-        if (SimVarDefs[i][1] == NULL) {
+        if (_strnicmp(SimVarDefs[i][1], "string", 6) == 0) {
             // Add string
-            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_ID, SimVarDefs[i][0], NULL, SIMCONNECT_DATATYPE_STRING256) < 0) {
+            SIMCONNECT_DATATYPE dataType = SIMCONNECT_DATATYPE_STRING256;
+            int dataLen = 256;
+
+            if (strcmp(SimVarDefs[i][1], "string64") == 0) {
+                dataType = SIMCONNECT_DATATYPE_STRING64;
+                dataLen = 64;
+            }
+            else if (strcmp(SimVarDefs[i][1], "string8") == 0) {
+                dataType = SIMCONNECT_DATATYPE_STRING8;
+                dataLen = 8;
+            }
+
+            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_ID, SimVarDefs[i][0], NULL, dataType) < 0) {
                 printf("Data def failed: %s (string)\n", SimVarDefs[i][0]);
             }
             else {
-                varSize += 256;
+                varSize += dataLen;
             }
         }
-        else if (strcmp(SimVarDefs[i][1], "todo") != 0) {
+        else {
             // Add double (float64)
             if (SimConnect_AddToDataDefinition(hSimConnect, DEF_ID, SimVarDefs[i][0], SimVarDefs[i][1]) < 0) {
                 printf("Data def failed: %s, %s\n", SimVarDefs[i][0], SimVarDefs[i][1]);

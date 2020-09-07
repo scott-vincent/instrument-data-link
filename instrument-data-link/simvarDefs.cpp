@@ -21,7 +21,7 @@ const char* SimVarDefs[][2] = {
     { "Electrical Battery Bus Voltage", "volts" },
     { "Ambient Temperature", "celsius" },
     { "General Eng Rpm:1", "rpm" },
-    { "Eng Percent Max Rpm:1", "percent" },
+    { "Eng Rpm Animation Percent:1", "percent" },
     { "General Eng Elapsed Time:1", "hours" },
     { "Fuel Tank Left Main Level", "percent" },
     { "Fuel Tank Right Main Level", "percent" },
@@ -45,5 +45,10 @@ const char* SimVarDefs[][2] = {
     { "Nav Standby Frequency:2", "mhz" },
     { "Adf Active Frequency:1", "khz" },
     { "Adf Standby Frequency:1", "khz" },
+    { "Atc Id", "string64" },
+    { "Atc Airline", "string64" },
+    { "Atc Flight Number", "string8" },
+    { "Atc Heavy", "bool" },
+    { "Title", "string256" },
     { NULL, NULL }
 };
