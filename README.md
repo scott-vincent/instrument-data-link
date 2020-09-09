@@ -1,6 +1,6 @@
 # MICROSOFT FLIGHT SIMULATOR 2020 - INSTRUMENT DATA LINK
 
-![Screenshot](Screenshot.png)
+![Screenshot](Screenshot.jpg)
 
 This is the companion program to
 
