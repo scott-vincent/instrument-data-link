@@ -8,7 +8,7 @@ const char* SimVarDefs[][2] = {
     { "Airspeed Indicated", "knots" },
     { "Airspeed Mach", "mach" },
     { "Airspeed True Calibrate", "degrees" },
-    { "Heading Indicator", "degrees" },
+    { "Plane Heading Degrees Magnetic", "degrees" },
     { "Vertical Speed", "feet per second" },
     { "Turn Indicator Rate", "radians per second" },
     { "Turn Coordinator Ball", "position" },

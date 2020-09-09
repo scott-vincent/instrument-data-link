@@ -35,6 +35,8 @@ enum REQUEST_ID {
 
 void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pContext)
 {
+    static int displayDelay = 0;
+
     switch (pData->dwID)
     {
     case SIMCONNECT_RECV_ID_EVENT:
@@ -72,8 +74,13 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
         case REQ_ID:
         {
             memcpy(varStart, &pObjData->dwData, varSize);
-            //printf("Tail Number: %s   Call Sign: %s %s   Heavy: %.0f   Aircraft: %s\n",
-            //    simVars.atcTailNumber, simVars.atcCallSign, simVars.atcFlightNumber, simVars.atcHeavy, simVars.aircraft);
+            if (displayDelay > 0) {
+                displayDelay--;
+            }
+            else {
+                printf("Aircraft: %s\n", simVars.aircraft);
+                displayDelay = 1500;
+            }
             break;
         }
         default:
