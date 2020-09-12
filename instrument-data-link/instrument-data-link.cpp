@@ -95,7 +95,8 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
 
     case SIMCONNECT_RECV_ID_QUIT:
     {
-        quit = true;
+        // Comment out next line to stay running when FS2020 quits
+        //quit = true;
         break;
     }
     }
