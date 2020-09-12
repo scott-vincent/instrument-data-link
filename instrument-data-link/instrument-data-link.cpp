@@ -11,6 +11,7 @@ const int Port = 52020;
 bool quit = false;
 HANDLE hSimConnect = NULL;
 extern const char* SimVarDefs[][2];
+extern WriteDef WriteDefs[];
 
 // Create server thread
 void server();
@@ -23,10 +24,6 @@ int varSize = 0;
 enum EVENT_ID {
     SIM_START,
     SIM_STOP
-};
-
-enum DEFINITION_ID {
-    DEF_ID
 };
 
 enum REQUEST_ID {
@@ -102,7 +99,7 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
     }
 }
 
-void addDataDefs()
+void addReadDefs()
 {
     for (int i = 0;; i++) {
         if (SimVarDefs[i][0] == NULL) {
@@ -123,7 +120,7 @@ void addDataDefs()
                 dataLen = 8;
             }
 
-            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_ID, SimVarDefs[i][0], NULL, dataType) < 0) {
+            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_READ_ALL, SimVarDefs[i][0], NULL, dataType) < 0) {
                 printf("Data def failed: %s (string)\n", SimVarDefs[i][0]);
             }
             else {
@@ -132,13 +129,45 @@ void addDataDefs()
         }
         else {
             // Add double (float64)
-            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_ID, SimVarDefs[i][0], SimVarDefs[i][1]) < 0) {
+            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_READ_ALL, SimVarDefs[i][0], SimVarDefs[i][1]) < 0) {
                 printf("Data def failed: %s, %s\n", SimVarDefs[i][0], SimVarDefs[i][1]);
             }
             else {
                 varSize += sizeof(double);
             }
         }
+    }
+}
+
+void addWriteDef(int defId, const char *name)
+{
+    int idx;
+    for (idx = 0;; idx++) {
+        if (SimVarDefs[idx][0] == NULL) {
+            printf("Write data def not found: %s\n", name);
+            return;
+        }
+
+        if (_stricmp(SimVarDefs[idx][0], name) == 0) {
+            break;
+        }
+    }
+
+    if (SimConnect_AddToDataDefinition(hSimConnect, defId, SimVarDefs[idx][0], SimVarDefs[idx][1]) < 0) {
+        printf("Write data def failed: %s, %s\n", SimVarDefs[idx][0], SimVarDefs[idx][1]);
+    }
+}
+
+void addDataDefs()
+{
+    addReadDefs();
+
+    for (int i = 0;; i++) {
+        if (WriteDefs[i].name == NULL) {
+            break;
+        }
+
+        addWriteDef(WriteDefs[i].id, WriteDefs[i].name);
     }
 }
 
@@ -157,7 +186,7 @@ void subscribeEvents()
 void cleanUp()
 {
     if (hSimConnect) {
-        if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_ID, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_NEVER, 0, 0, 0, 0) < 0) {
+        if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_READ_ALL, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_NEVER, 0, 0, 0, 0) < 0) {
             printf("Failed to stop requesting data\n");
         }
 
@@ -210,7 +239,7 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
                 simVars.connected = 1;
 
                 // Start requesting data
-                if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_ID, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_VISUAL_FRAME, 0, 0, 0, 0) < 0) {
+                if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_READ_ALL, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_VISUAL_FRAME, 0, 0, 0, 0) < 0) {
                     printf("Failed to start requesting data\n");
                 }
             }
@@ -224,6 +253,17 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
 
     cleanUp();
     return 0;
+}
+
+long getWriteSize(int defId)
+{
+    switch (defId) {
+        case DEF_WRITE_TRIM_FLAPS:
+            return sizeof(TrimFlapsData);
+
+        default:
+            return 0;
+    }
 }
 
 void server()
@@ -265,9 +305,13 @@ void server()
     timeout.tv_usec = 500000;
 
     long dataSize = sizeof(SimVars);
-    long requestedSize;
     int active = -1;
     int bytes;
+
+    struct {
+        long requestedSize;
+        char writeData[256];
+    } recvBuffer;
 
     while (!quit) {
         fd_set fds;
@@ -277,14 +321,31 @@ void server()
         // Wait for instrument panel to poll (non-blocking, 1 second timeout)
         int sel = select(FD_SETSIZE, &fds, 0, 0, &timeout);
         if (sel > 0) {
-            bytes = recvfrom(sockfd, (char*)&requestedSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, &addrSize);
+            bytes = recvfrom(sockfd, (char*)&recvBuffer, sizeof(recvBuffer), 0, (SOCKADDR*)&senderAddr, &addrSize);
             if (bytes > 0) {
                 if (active != 1) {
                     printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
                     active = 1;
                 }
 
-                if (requestedSize == dataSize) {
+                if (recvBuffer.requestedSize < 20) {
+                    // This is a write
+                    int defId = recvBuffer.requestedSize;
+                    long writeSize = getWriteSize(defId);
+                    long expectedSize = sizeof(long) + writeSize;
+                    if (bytes != expectedSize) {
+                        printf("Client at %s sent %d bytes for write def %d instead of %ld bytes\n",
+                            inet_ntoa(senderAddr.sin_addr), bytes, defId, expectedSize);
+                    }
+                    else if (simVars.connected) {
+                        HRESULT result = SimConnect_SetDataOnSimObject(hSimConnect, defId, SIMCONNECT_OBJECT_ID_USER, 0, 0, writeSize, &recvBuffer.writeData);
+                        if (result != 0) {
+                            printf("Failed to write data for def: %ld\n", defId);
+                        }
+                    }
+                    bytes = sendto(sockfd, (char*)&expectedSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, addrSize);
+                }
+                else if (recvBuffer.requestedSize == dataSize) {
                     // Send latest data to the client that polled us
                     bytes = sendto(sockfd, (char*)&simVars, dataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
                 }
@@ -292,7 +353,7 @@ void server()
                     // Data size mismatch
                     bytes = sendto(sockfd, (char*)&dataSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, addrSize);
                     printf("Client at %s requested %ld bytes instead of %ld bytes\n",
-                        inet_ntoa(senderAddr.sin_addr), requestedSize, dataSize);
+                        inet_ntoa(senderAddr.sin_addr), recvBuffer.requestedSize, dataSize);
                 }
 
                 if (bytes <= 0) {
