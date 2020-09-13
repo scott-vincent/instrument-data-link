@@ -11,7 +11,7 @@ const int Port = 52020;
 bool quit = false;
 HANDLE hSimConnect = NULL;
 extern const char* SimVarDefs[][2];
-extern WriteDef WriteDefs[];
+extern WriteEvent WriteEvents[];
 
 // Create server thread
 void server();
@@ -21,9 +21,8 @@ SimVars simVars;
 double *varStart = (double *)&simVars + 1;
 int varSize = 0;
 
-enum EVENT_ID {
-    SIM_START,
-    SIM_STOP
+enum DEFINITION_ID {
+    DEF_READ_ALL
 };
 
 enum REQUEST_ID {
@@ -139,35 +138,16 @@ void addReadDefs()
     }
 }
 
-void addWriteDef(int defId, const char *name)
+void mapEvents()
 {
-    int idx;
-    for (idx = 0;; idx++) {
-        if (SimVarDefs[idx][0] == NULL) {
-            printf("Write data def not found: %s\n", name);
-            return;
-        }
-
-        if (_stricmp(SimVarDefs[idx][0], name) == 0) {
-            break;
-        }
-    }
-
-    if (SimConnect_AddToDataDefinition(hSimConnect, defId, SimVarDefs[idx][0], SimVarDefs[idx][1]) < 0) {
-        printf("Write data def failed: %s, %s\n", SimVarDefs[idx][0], SimVarDefs[idx][1]);
-    }
-}
-
-void addDataDefs()
-{
-    addReadDefs();
-
     for (int i = 0;; i++) {
-        if (WriteDefs[i].name == NULL) {
+        if (WriteEvents[i].name == NULL) {
             break;
         }
 
-        addWriteDef(WriteDefs[i].id, WriteDefs[i].name);
+        if (SimConnect_MapClientEventToSimEvent(hSimConnect, WriteEvents[i].id, WriteEvents[i].name) != 0) {
+            printf("Map event failed: %s\n", WriteEvents[i].name);
+        }
     }
 }
 
@@ -234,7 +214,8 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
             result = SimConnect_Open(&hSimConnect, "Instrument Data Link", NULL, 0, 0, 0);
             if (result == 0) {
                 printf("Connected to MS FS2020\n");
-                addDataDefs();
+                addReadDefs();
+                mapEvents();
                 subscribeEvents();
                 simVars.connected = 1;
 
@@ -253,17 +234,6 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
 
     cleanUp();
     return 0;
-}
-
-long getWriteSize(int defId)
-{
-    switch (defId) {
-        case DEF_WRITE_TRIM_FLAPS:
-            return sizeof(TrimFlapsData);
-
-        default:
-            return 0;
-    }
 }
 
 void server()
@@ -310,7 +280,7 @@ void server()
 
     struct {
         long requestedSize;
-        char writeData[256];
+        WriteData writeData;
     } recvBuffer;
 
     while (!quit) {
@@ -328,22 +298,13 @@ void server()
                     active = 1;
                 }
 
-                if (recvBuffer.requestedSize < 20) {
+                if (recvBuffer.requestedSize == sizeof(WriteData)) {
                     // This is a write
-                    int defId = recvBuffer.requestedSize;
-                    long writeSize = getWriteSize(defId);
-                    long expectedSize = sizeof(long) + writeSize;
-                    if (bytes != expectedSize) {
-                        printf("Client at %s sent %d bytes for write def %d instead of %ld bytes\n",
-                            inet_ntoa(senderAddr.sin_addr), bytes, defId, expectedSize);
-                    }
-                    else if (simVars.connected) {
-                        HRESULT result = SimConnect_SetDataOnSimObject(hSimConnect, defId, SIMCONNECT_OBJECT_ID_USER, 0, 0, writeSize, &recvBuffer.writeData);
-                        if (result != 0) {
-                            printf("Failed to write data for def: %ld\n", defId);
+                    if (simVars.connected) {
+                        if (SimConnect_TransmitClientEvent(hSimConnect, 0, recvBuffer.writeData.eventId, (DWORD)recvBuffer.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
+                            printf("Failed to transmit event: %d\n", recvBuffer.writeData.eventId);
                         }
                     }
-                    bytes = sendto(sockfd, (char*)&expectedSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, addrSize);
                 }
                 else if (recvBuffer.requestedSize == dataSize) {
                     // Send latest data to the client that polled us
