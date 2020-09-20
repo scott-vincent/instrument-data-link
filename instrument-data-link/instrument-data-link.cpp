@@ -1,3 +1,7 @@
+/*
+ * Instrument Data Link
+ * Copyright (c) 2020 Scott Vincent
+ */ 
 #include <windows.h>
 #include <tchar.h>
 #include <stdio.h>
@@ -12,6 +16,7 @@ const int Port = 52020;
 
 bool quit = false;
 HANDLE hSimConnect = NULL;
+extern const char* versionString;
 extern const char* SimVarDefs[][2];
 extern WriteEvent WriteEvents[];
 
@@ -198,6 +203,8 @@ void cleanUp()
 
 int __cdecl _tmain(int argc, _TCHAR* argv[])
 {
+    printf("Instrument Data Link %s Copyright (c) 2020 Scott Vincent\n", versionString);
+
     // Yield so server can start
     Sleep(100);
 
