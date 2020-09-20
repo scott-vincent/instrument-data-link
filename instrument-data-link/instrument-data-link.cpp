@@ -9,6 +9,8 @@
 #include "simvarDefs.h"
 #include "SimConnect.h"
 
+//#define DEBUG_VARS
+
 // Data will be served on this port
 const int Port = 52020;
 
@@ -75,13 +77,21 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
         case REQ_ID:
         {
             memcpy(varStart, &pObjData->dwData, varSize);
-            //if (displayDelay > 0) {
-            //    displayDelay--;
-            //}
-            //else {
-            //    printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-            //    displayDelay = 250;
-            //}
+            #ifdef DEBUG_VARS
+            if (displayDelay > 0)
+                displayDelay--;
+
+            else {
+                printf("Oil Temperature: %f\n", simVars.oilTemp);
+                printf("Oil Pressure: %f\n", simVars.oilPress);
+                printf("Exhaust Gas Temperature: %f\n", simVars.exhaustGasTemp);
+                printf("Exhaust Gas Temperature Pointer: %f\n", simVars.exhaustGasTempGES);
+                printf("Fuel Flow: %f\n", simVars.engineFuelFlow);
+                printf("Suction Pressure: %f\n", simVars.suctionPressure);
+                displayDelay = 250;
+            }
+            #endif // DEBUG_VARS
+                       
             break;
         }
         default:
