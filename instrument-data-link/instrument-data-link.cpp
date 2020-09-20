@@ -82,12 +82,7 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
                 displayDelay--;
 
             else {
-                printf("Oil Temperature: %f\n", simVars.oilTemp);
-                printf("Oil Pressure: %f\n", simVars.oilPress);
-                printf("Exhaust Gas Temperature: %f\n", simVars.exhaustGasTemp);
-                printf("Exhaust Gas Temperature Pointer: %f\n", simVars.exhaustGasTempGES);
-                printf("Fuel Flow: %f\n", simVars.engineFuelFlow);
-                printf("Suction Pressure: %f\n", simVars.suctionPressure);
+                printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
                 displayDelay = 250;
             }
             #endif // DEBUG_VARS
