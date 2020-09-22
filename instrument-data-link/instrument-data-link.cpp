@@ -317,6 +317,21 @@ void server()
                             printf("Failed to transmit event: %d\n", recvBuffer.writeData.eventId);
                         }
                     }
+                    if (recvBuffer.writeData.eventId == KEY_COM1_STBY_RADIO_SET || recvBuffer.writeData.eventId == KEY_COM2_STBY_RADIO_SET) {
+                        // Check for extra .5 on value
+                        int val = (int)(recvBuffer.writeData.value * 10 + 0.01);
+                        if (val % 10 >= 4) {
+                            if (recvBuffer.writeData.eventId == KEY_COM1_STBY_RADIO_SET) {
+                                recvBuffer.writeData.eventId = KEY_COM1_RADIO_FRACT_INC;
+                            }
+                            else {
+                                recvBuffer.writeData.eventId = KEY_COM2_RADIO_FRACT_INC;
+                            }
+                            if (SimConnect_TransmitClientEvent(hSimConnect, 0, recvBuffer.writeData.eventId, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
+                                printf("Failed to transmit event: %d\n", recvBuffer.writeData.eventId);
+                            }
+                        }
+                    }
                 }
                 else if (recvBuffer.requestedSize == dataSize) {
                     // Send latest data to the client that polled us
