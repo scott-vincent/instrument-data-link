@@ -75,15 +75,13 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
         case REQ_ID:
         {
             memcpy(varStart, &pObjData->dwData, varSize);
-            if (displayDelay > 0) {
-                displayDelay--;
-            }
-            else {
-                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-                printf("Volts: %f   com1State: %f   com2State: %f   Gen Oil: %f   Oil: %f\n",
-                    simVars.dcVolts, simVars.com1Status, simVars.com2Status, simVars.oilPressureGeneral,simVars.oilPressure);
-                displayDelay = 250;
-            }
+            //if (displayDelay > 0) {
+            //    displayDelay--;
+            //}
+            //else {
+            //    printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //    displayDelay = 250;
+            //}
             break;
         }
         default:
