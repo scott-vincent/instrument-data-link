@@ -80,7 +80,6 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
             //}
             //else {
             //    printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-            //    displayDelay = 250;
             //}
             break;
         }
