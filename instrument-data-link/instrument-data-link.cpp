@@ -80,6 +80,9 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
             //}
             //else {
             //    printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //    printf("AP: %f  FD: %f  Speed: %f  Bank: %f  Pitch: %f\n",
+            //        simVars.autopilotEngaged, simVars.flightDirectorActive,
+            //        simVars.asiAirspeed, simVars.adiBank, simVars.adiPitch);
             //}
             break;
         }
