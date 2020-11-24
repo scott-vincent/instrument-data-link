@@ -79,7 +79,7 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
             //    displayDelay--;
             //}
             //else {
-            //    printf("Altitude: %f   Gear: %f\n", simVars.altAboveGround, simVars.gearCentrePos);
+            //    printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
             //}
             break;
         }
