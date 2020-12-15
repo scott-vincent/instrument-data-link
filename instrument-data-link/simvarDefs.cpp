@@ -33,6 +33,8 @@ const char* SimVarDefs[][2] = {
     { "General Eng Rpm:1", "rpm" },
     { "Eng Rpm Animation Percent:1", "percent" },
     { "General Eng Elapsed Time:1", "hours" },
+    { "Fuel Total Capacity", "gallons" },
+    { "Fuel Total Quantity", "gallons" },
     { "Fuel Tank Left Main Level", "percent" },
     { "Fuel Tank Right Main Level", "percent" },
     { "Nav Obs:1", "degrees" },
