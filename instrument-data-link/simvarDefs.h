@@ -14,7 +14,6 @@ struct SimVars
     double asiTrueSpeed = 0;
     double asiMachSpeed = 0;
     double asiAirspeedCal = -14;
-    double asiMaxMach = 0;
     double hiHeading = 0;
     double hiHeadingTrue = 0;
     double vsiVerticalSpeed = 0;
@@ -35,8 +34,10 @@ struct SimVars
     double rpmEngine = 0;
     double rpmPercent = 0;
     double rpmElapsedTime = 0;
-    double fuelLeft = 0;
-    double fuelRight = 0;
+    double fuelCapacity = 0;
+    double fuelQuantity = 0;
+    double fuelLeftPercent = 0;
+    double fuelRightPercent = 0;
     double vor1Obs = 0;
     double vor1RadialError = 0;
     double vor1GlideSlopeError = 0;
@@ -82,8 +83,6 @@ struct SimVars
     double autopilotAirspeedHold = 0;
     double autopilotApproachHold = 0;
     double autopilotGlideslopeHold = 0;
-    double autopilotBank = 0;
-    double autopilotMaxBank = 0;
     double throttlePosition = 0;
     double autothrottleActive = 0;
     double gearRetractable = 1;
@@ -156,8 +155,6 @@ enum EVENT_ID {
     KEY_HEADING_SLOT_INDEX_SET,
     KEY_SPEED_SLOT_INDEX_SET,
     KEY_ALTITUDE_SLOT_INDEX_SET,
-    KEY_AILERON_SET,
-    KEY_ELEVATOR_SET,
     KEY_TUG_HEADING
 };
 
