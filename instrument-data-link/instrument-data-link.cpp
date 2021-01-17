@@ -114,13 +114,17 @@ void addReadDefs()
             SIMCONNECT_DATATYPE dataType = SIMCONNECT_DATATYPE_STRING256;
             int dataLen = 256;
 
-            if (strcmp(SimVarDefs[i][1], "string64") == 0) {
-                dataType = SIMCONNECT_DATATYPE_STRING64;
-                dataLen = 64;
-            }
-            else if (strcmp(SimVarDefs[i][1], "string8") == 0) {
+            if (strcmp(SimVarDefs[i][1], "string8") == 0) {
                 dataType = SIMCONNECT_DATATYPE_STRING8;
                 dataLen = 8;
+            }
+            else if (strcmp(SimVarDefs[i][1], "string32") == 0) {
+                dataType = SIMCONNECT_DATATYPE_STRING32;
+                dataLen = 32;
+            }
+            else if (strcmp(SimVarDefs[i][1], "string64") == 0) {
+                dataType = SIMCONNECT_DATATYPE_STRING64;
+                dataLen = 64;
             }
 
             if (SimConnect_AddToDataDefinition(hSimConnect, DEF_READ_ALL, SimVarDefs[i][0], NULL, dataType) < 0) {
@@ -284,6 +288,12 @@ void server()
     int active = -1;
     int bytes;
 
+    // Autopilot and Radio panel clients request less data to save bandwidth
+    long autopilotDataSize = (long)((LONG_PTR)(&simVars.autothrottleActive) + (long)sizeof(simVars.autothrottleActive) - (LONG_PTR)&simVars);
+    long radioDataSize = (long)((LONG_PTR)(&simVars.transponderCode) + (long)sizeof(simVars.transponderCode) - (LONG_PTR)&simVars);
+    bool autopilotPanelConnected = false;
+    bool radioPanelConnected = false;
+
     struct {
         long requestedSize;
         WriteData writeData;
@@ -299,11 +309,6 @@ void server()
         if (sel > 0) {
             bytes = recvfrom(sockfd, (char*)&recvBuffer, sizeof(recvBuffer), 0, (SOCKADDR*)&senderAddr, &addrSize);
             if (bytes > 0) {
-                if (active != 1) {
-                    printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
-                    active = 1;
-                }
-
                 if (recvBuffer.requestedSize == sizeof(WriteData)) {
                     // This is a write
                     if (simVars.connected) {
@@ -330,6 +335,26 @@ void server()
                 else if (recvBuffer.requestedSize == dataSize) {
                     // Send latest data to the client that polled us
                     bytes = sendto(sockfd, (char*)&simVars, dataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+                    if (active != 1) {
+                        printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+                        active = 1;
+                    }
+                }
+                else if (recvBuffer.requestedSize == autopilotDataSize) {
+                    // Send autopilot data to the client that polled us
+                    bytes = sendto(sockfd, (char*)&simVars, autopilotDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+                    if (!autopilotPanelConnected) {
+                        printf("Autopilot panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+                        autopilotPanelConnected = true;
+                    }
+                }
+                else if (recvBuffer.requestedSize == radioDataSize) {
+                    // Send radio data to the client that polled us
+                    bytes = sendto(sockfd, (char*)&simVars, radioDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+                    if (!radioPanelConnected) {
+                        printf("Radio panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+                        radioPanelConnected = true;
+                    }
                 }
                 else {
                     // Data size mismatch
