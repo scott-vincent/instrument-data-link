@@ -362,10 +362,6 @@ void server()
                     printf("Client at %s requested %ld bytes instead of %ld bytes\n",
                         inet_ntoa(senderAddr.sin_addr), recvBuffer.requestedSize, dataSize);
                 }
-
-                if (bytes <= 0) {
-                    bytes = SOCKET_ERROR;
-                }
             }
             else {
                 bytes = SOCKET_ERROR;
