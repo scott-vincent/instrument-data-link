@@ -18,9 +18,13 @@ The instrument panel connects to this program over your network and receives the
 
 # vJoy
 
+This is an alternative way for a panel to send an event to FS2020 when the event in SimConnect is not yet working correctly (due to SDK bugs). The panel simulates a joystick button press and the correct action must be configured in the Controls section of FS2020.
+
 Use of vJoy is optional and is currently only used by the Power/Lights panel. If you want to use vJoy you must install the vJoy Virtual Joystick driver from here:
 
 http://vjoystick.sourceforge.net/site/index.php/download-a-install/download
+
+After the vJoy driver is installed you will see a new joystick in the Controls section of FS2020 called vJoy.
 
 # Donate
 
