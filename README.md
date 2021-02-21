@@ -5,8 +5,11 @@
 This is the companion program to
 
   https://github.com/scott-vincent/instrument-panel
+  
   https://github.com/scott-vincent/autopilot-panel
+  
   https://github.com/scott-vincent/radio-panel
+  
   https://github.com/scott-vincent/power-lights-panel
 
 This program must run on the same host as MS FS2020 and uses the Microsoft
