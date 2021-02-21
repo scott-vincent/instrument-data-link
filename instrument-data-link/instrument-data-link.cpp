@@ -1,7 +1,8 @@
 /*
- * Instrument Data Link
- * Copyright (c) 2020 Scott Vincent
- */ 
+ * Flight Simulator Instrument Data Link
+ * Copyright (c) 2021 Scott Vincent
+ */
+
 #include <windows.h>
 #include <tchar.h>
 #include <stdio.h>
@@ -9,8 +10,30 @@
 #include "simvarDefs.h"
 #include "SimConnect.h"
 
-// Data will be served on this port
+ // Data will be served on this port
 const int Port = 52020;
+
+// Some SimConnect events don't work with certain aircraft
+// so use vJoy to simulate joystick button preses instead.
+// To use vJoy you must install the device driver from here:
+//    http://vjoystick.sourceforge.net/site/index.php/download-a-install/download
+//
+// Comment the following line out if you don't want to use vJoy.
+#define vJoyFallback
+
+#ifdef vJoyFallback
+#include "..\vJoy_SDK\inc\public.h"
+#include "..\vJoy_SDK\inc\vjoyinterface.h"
+
+const char *VJOY_CONFIG_EXE = "C:\\Program Files\\vJoy\\x64\\vJoyConf.exe (Run as Admin)";
+
+void vJoyInit();
+void vJoyButtonPress(int button);
+
+int vJoyDeviceId = 1;
+bool vJoyInitialised = false;
+int vJoyConfiguredButtons;
+#endif
 
 bool quit = false;
 HANDLE hSimConnect = NULL;
@@ -18,13 +41,34 @@ extern const char* versionString;
 extern const char* SimVarDefs[][2];
 extern WriteEvent WriteEvents[];
 
-// Create server thread
-void server();
-std::thread serverThread(server);
-
 SimVars simVars;
 double *varStart = (double *)&simVars + 1;
 int varSize = 0;
+
+// Some panels request less data to save bandwidth
+long writeDataSize = sizeof(WriteData);
+long instrumentsDataSize = sizeof(SimVars);
+long autopilotDataSize = (long)((LONG_PTR)(&simVars.autothrottleActive) + (long)sizeof(double) - (LONG_PTR)&simVars);
+long radioDataSize = (long)((LONG_PTR)(&simVars.transponderCode) + (long)sizeof(double) - (LONG_PTR)&simVars);
+long lightsDataSize = (long)((LONG_PTR)(&simVars.apuBleed) + (long)sizeof(double) - (LONG_PTR)&simVars);
+
+int active = -1;
+int bytes;
+bool autopilotPanelConnected = false;
+bool radioPanelConnected = false;
+bool lightsPanelConnected = false;
+SOCKET sockfd;
+sockaddr_in senderAddr;
+int addrSize = sizeof(senderAddr);
+
+struct {
+    long requestedSize;
+    WriteData writeData;
+} recvBuffer;
+
+// Create server thread
+void server();
+std::thread serverThread(server);
 
 enum DEFINITION_ID {
     DEF_READ_ALL
@@ -159,18 +203,6 @@ void mapEvents()
     }
 }
 
-void subscribeEvents()
-{
-    // Request an event when the simulation starts
-    //if (SimConnect_SubscribeToSystemEvent(hSimConnect, SIM_START, "SimStart") < 0) {
-    //    printf("Subscribe event failed: SimStart\n");
-    //}
-
-    //if (SimConnect_SubscribeToSystemEvent(hSimConnect, SIM_STOP, "SimStop") < 0) {
-    //    printf("Subscribe event failed: SimStop\n");
-    //}
-}
-
 void cleanUp()
 {
     if (hSimConnect) {
@@ -226,7 +258,6 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
                 printf("Connected to MS FS2020\n");
                 addReadDefs();
                 mapEvents();
-                subscribeEvents();
                 simVars.connected = 1;
 
                 // Start requesting data
@@ -246,6 +277,86 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
     return 0;
 }
 
+void processRequest()
+{
+    if (recvBuffer.requestedSize == writeDataSize) {
+        // This is a write
+        if (!simVars.connected) {
+            return;
+        }
+
+        if (recvBuffer.writeData.eventId >= VJOY_BUTTONS && recvBuffer.writeData.eventId <= VJOY_BUTTONS_END) {
+#ifdef vJoyFallback
+            if (!vJoyInitialised) {
+                vJoyInit();
+            }
+            vJoyButtonPress(recvBuffer.writeData.eventId);
+#else
+            printf("vJoy button event ignored - vJoyFallback is not enabled\n");
+#endif
+            return;
+        }
+
+        if (SimConnect_TransmitClientEvent(hSimConnect, 0, recvBuffer.writeData.eventId, (DWORD)recvBuffer.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
+            printf("Failed to transmit event: %d\n", recvBuffer.writeData.eventId);
+        }
+
+        if (recvBuffer.writeData.eventId == KEY_COM1_STBY_RADIO_SET || recvBuffer.writeData.eventId == KEY_COM2_STBY_RADIO_SET) {
+            // Check for extra .5 on value
+            int val = (int)(recvBuffer.writeData.value * 10 + 0.01);
+            if (val % 10 >= 4) {
+                if (recvBuffer.writeData.eventId == KEY_COM1_STBY_RADIO_SET) {
+                    recvBuffer.writeData.eventId = KEY_COM1_RADIO_FRACT_INC;
+                }
+                else {
+                    recvBuffer.writeData.eventId = KEY_COM2_RADIO_FRACT_INC;
+                }
+                if (SimConnect_TransmitClientEvent(hSimConnect, 0, recvBuffer.writeData.eventId, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
+                    printf("Failed to transmit event: %d\n", recvBuffer.writeData.eventId);
+                }
+            }
+        }
+    }
+    else if (recvBuffer.requestedSize == instrumentsDataSize) {
+        // Send instrument data to the client that polled us
+        bytes = sendto(sockfd, (char*)&simVars, instrumentsDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+        if (active != 1) {
+            printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+            active = 1;
+        }
+    }
+    else if (recvBuffer.requestedSize == autopilotDataSize) {
+        // Send autopilot data to the client that polled us
+        bytes = sendto(sockfd, (char*)&simVars, autopilotDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+        if (!autopilotPanelConnected) {
+            printf("Autopilot panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+            autopilotPanelConnected = true;
+        }
+    }
+    else if (recvBuffer.requestedSize == radioDataSize) {
+        // Send radio data to the client that polled us
+        bytes = sendto(sockfd, (char*)&simVars, radioDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+        if (!radioPanelConnected) {
+            printf("Radio panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+            radioPanelConnected = true;
+        }
+    }
+    else if (recvBuffer.requestedSize == lightsDataSize) {
+        // Send power/lights data to the client that polled us
+        bytes = sendto(sockfd, (char*)&simVars, lightsDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+        if (!lightsPanelConnected) {
+            printf("Power/Lights panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+            lightsPanelConnected = true;
+        }
+    }
+    else {
+        // Data size mismatch
+        bytes = sendto(sockfd, (char*)&instrumentsDataSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, addrSize);
+        printf("Client at %s requested %ld bytes instead of %ld bytes\n",
+            inet_ntoa(senderAddr.sin_addr), recvBuffer.requestedSize, instrumentsDataSize);
+    }
+}
+
 void server()
 {
     WSADATA wsaData;
@@ -256,7 +367,6 @@ void server()
     }
 
     // Create a UDP socket
-    SOCKET sockfd;
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET) {
         printf("Server failed to create UDP socket\n");
         exit(1);
@@ -277,27 +387,9 @@ void server()
 
     printf("Server listening on port %d\n", Port);
 
-    sockaddr_in senderAddr;
-    int addrSize = sizeof(senderAddr);
-
     timeval timeout;
     timeout.tv_sec = 0;
     timeout.tv_usec = 500000;
-
-    long dataSize = sizeof(SimVars);
-    int active = -1;
-    int bytes;
-
-    // Autopilot and Radio panel clients request less data to save bandwidth
-    long autopilotDataSize = (long)((LONG_PTR)(&simVars.autothrottleActive) + (long)sizeof(simVars.autothrottleActive) - (LONG_PTR)&simVars);
-    long radioDataSize = (long)((LONG_PTR)(&simVars.transponderCode) + (long)sizeof(simVars.transponderCode) - (LONG_PTR)&simVars);
-    bool autopilotPanelConnected = false;
-    bool radioPanelConnected = false;
-
-    struct {
-        long requestedSize;
-        WriteData writeData;
-    } recvBuffer;
 
     while (!quit) {
         fd_set fds;
@@ -309,59 +401,7 @@ void server()
         if (sel > 0) {
             bytes = recvfrom(sockfd, (char*)&recvBuffer, sizeof(recvBuffer), 0, (SOCKADDR*)&senderAddr, &addrSize);
             if (bytes > 0) {
-                if (recvBuffer.requestedSize == sizeof(WriteData)) {
-                    // This is a write
-                    if (simVars.connected) {
-                        if (SimConnect_TransmitClientEvent(hSimConnect, 0, recvBuffer.writeData.eventId, (DWORD)recvBuffer.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
-                            printf("Failed to transmit event: %d\n", recvBuffer.writeData.eventId);
-                        }
-                    }
-                    if (recvBuffer.writeData.eventId == KEY_COM1_STBY_RADIO_SET || recvBuffer.writeData.eventId == KEY_COM2_STBY_RADIO_SET) {
-                        // Check for extra .5 on value
-                        int val = (int)(recvBuffer.writeData.value * 10 + 0.01);
-                        if (val % 10 >= 4) {
-                            if (recvBuffer.writeData.eventId == KEY_COM1_STBY_RADIO_SET) {
-                                recvBuffer.writeData.eventId = KEY_COM1_RADIO_FRACT_INC;
-                            }
-                            else {
-                                recvBuffer.writeData.eventId = KEY_COM2_RADIO_FRACT_INC;
-                            }
-                            if (SimConnect_TransmitClientEvent(hSimConnect, 0, recvBuffer.writeData.eventId, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
-                                printf("Failed to transmit event: %d\n", recvBuffer.writeData.eventId);
-                            }
-                        }
-                    }
-                }
-                else if (recvBuffer.requestedSize == dataSize) {
-                    // Send latest data to the client that polled us
-                    bytes = sendto(sockfd, (char*)&simVars, dataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
-                    if (active != 1) {
-                        printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
-                        active = 1;
-                    }
-                }
-                else if (recvBuffer.requestedSize == autopilotDataSize) {
-                    // Send autopilot data to the client that polled us
-                    bytes = sendto(sockfd, (char*)&simVars, autopilotDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
-                    if (!autopilotPanelConnected) {
-                        printf("Autopilot panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
-                        autopilotPanelConnected = true;
-                    }
-                }
-                else if (recvBuffer.requestedSize == radioDataSize) {
-                    // Send radio data to the client that polled us
-                    bytes = sendto(sockfd, (char*)&simVars, radioDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
-                    if (!radioPanelConnected) {
-                        printf("Radio panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
-                        radioPanelConnected = true;
-                    }
-                }
-                else {
-                    // Data size mismatch
-                    bytes = sendto(sockfd, (char*)&dataSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, addrSize);
-                    printf("Client at %s requested %ld bytes instead of %ld bytes\n",
-                        inet_ntoa(senderAddr.sin_addr), recvBuffer.requestedSize, dataSize);
-                }
+                processRequest();
             }
             else {
                 bytes = SOCKET_ERROR;
@@ -378,6 +418,86 @@ void server()
     }
 
     closesocket(sockfd);
-
     printf("Server stopped\n");
 }
+
+#ifdef vJoyFallback
+void vJoyInit()
+{
+    printf("Initialising vJoy Interface...\n");
+
+    if (!vJoyEnabled())
+    {
+        printf("Failed - Make sure that vJoy is installed and enabled\n");
+        return;
+    }
+
+    // Get the status of the vJoy device before trying to acquire it
+    VjdStat status = GetVJDStatus(vJoyDeviceId);
+
+    switch (status)
+    {
+    case VJD_STAT_BUSY:
+        printf("Failed - vJoy device %d is already owned by another program", vJoyDeviceId);
+        return;
+    case VJD_STAT_MISS:
+        printf("Failed - vJoy device %d is not installed or disabled. Run %s to configure it.\n", vJoyDeviceId, VJOY_CONFIG_EXE);
+        return;
+    case VJD_STAT_OWN:
+        printf("vJoy device %d is already owned by this program\n", vJoyDeviceId);
+        break;
+    case VJD_STAT_FREE:
+        // printf("vJoy device %d is available\n", vJoyDeviceId);
+        break;
+    default:
+        printf("Failed - vJoy device %d general error\n", vJoyDeviceId);
+        return;
+    };
+
+    // Acquire the vJoy device
+    if (!AcquireVJD(vJoyDeviceId))
+    {
+        printf("Failed - Cannot acquire vJoy device %d\n", vJoyDeviceId);
+        return;
+    }
+
+    // Get the number of buttons that are configured for this joystick
+    vJoyConfiguredButtons = GetVJDButtonNumber(vJoyDeviceId);
+    int dataLinkConfiguredButtons = (VJOY_BUTTONS_END - 1) - VJOY_BUTTONS;
+    if (vJoyConfiguredButtons < dataLinkConfiguredButtons) {
+        printf("WARNING - Data link has %d vJoy buttons configured but vJoy device %d only has %d buttons configured. Run %s to configure more buttons.\n",
+            dataLinkConfiguredButtons, vJoyDeviceId, vJoyConfiguredButtons, VJOY_CONFIG_EXE);
+    }
+
+    printf("Success - Acquired vJoy device %d\n", vJoyDeviceId);
+
+    ResetButtons(vJoyDeviceId);
+    vJoyInitialised = true;
+}
+
+void vJoyButtonPress(int eventId)
+{
+    if (eventId == VJOY_BUTTONS || eventId == VJOY_BUTTONS_END) {
+        printf("Dummy vJoy button event VJOY_BUTTONS/VJOY_BUTTONS_END gnored\n");
+        return;
+    }
+
+    int button = eventId - VJOY_BUTTONS;
+
+    if (!vJoyInitialised) {
+        printf("Ignored vJoy button %d event - vJoy is not initialised\n", button);
+        return;
+    }
+
+    if (button > vJoyConfiguredButtons) {
+        printf("Ignored vJoy button %d event - vJoy device %d does not have that many buttons configured. Run %s to configure more.\n",
+            button, vJoyDeviceId, VJOY_CONFIG_EXE);
+        return;
+    }
+
+    // Press and release joystick button
+    SetBtn(true, vJoyDeviceId, button);
+    Sleep(40);
+    SetBtn(false, vJoyDeviceId, button);
+}
+#endif // vJoyFallback

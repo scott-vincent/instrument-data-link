@@ -8,6 +8,6 @@
     <ClInclude Include="simvarDefs.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\..\..\..\..\MSFS SDK\SimConnect SDK\VS\SimConnectClient-static.props" />
+    <None Include="C:\MSFS SDK\SimConnect SDK\VS\SimConnectClient-static.props" />
   </ItemGroup>
 </Project>
