@@ -228,7 +228,7 @@ void cleanUp()
 
 int __cdecl _tmain(int argc, _TCHAR* argv[])
 {
-    printf("Instrument Data Link %s Copyright (c) 2020 Scott Vincent\n", versionString);
+    printf("Instrument Data Link %s Copyright (c) 2021 Scott Vincent\n", versionString);
 
     // Yield so server can start
     Sleep(100);
