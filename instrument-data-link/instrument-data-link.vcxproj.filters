@@ -3,11 +3,28 @@
   <ItemGroup>
     <ClCompile Include="instrument-data-link.cpp" />
     <ClCompile Include="simvarDefs.cpp" />
+    <ClCompile Include="jetbridge\Client.cpp">
+      <Filter>Jetbridge</Filter>
+    </ClCompile>
+    <ClCompile Include="jetbridge\Protocol.cpp">
+      <Filter>Jetbridge</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="simvarDefs.h" />
+    <ClInclude Include="jetbridge\Client.h">
+      <Filter>Jetbridge</Filter>
+    </ClInclude>
+    <ClInclude Include="jetbridge\Protocol.h">
+      <Filter>Jetbridge</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="C:\MSFS SDK\SimConnect SDK\VS\SimConnectClient-static.props" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Jetbridge">
+      <UniqueIdentifier>{43b308f5-d220-472b-8b64-866564fadcc3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

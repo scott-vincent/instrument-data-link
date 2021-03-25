@@ -35,6 +35,31 @@ bool vJoyInitialised = false;
 int vJoyConfiguredButtons;
 #endif
 
+// SimConnect doesn't currently support readuing local (lvar)
+// variables (params for 3rd party aircraft) but Jetbridge
+// allows us to do this.
+// To use jetbridge you must copy the Redist\a32nx-jetbridge
+// package to your FS2020 Community folder. Source available from:
+//    https://github.com/theomessin/jetbridge
+//
+// Comment the following line out if you don't want to use Jetbridge.
+#define jetbridgeFallback
+
+#ifdef jetbridgeFallback
+#include "jetbridge\client.h"
+
+const char* JETBRIDGE_APU_MASTER_SW = "L:A32NX_OVHD_APU_MASTER_SW_PB_IS_ON, bool";
+const int JETBRIDGE_APU_MASTER_SW_LEN = 41;
+const char* JETBRIDGE_APU_START = "L:A32NX_OVHD_APU_START_PB_IS_ON, bool";
+const int JETBRIDGE_APU_START_LEN = 37;
+const char* JETBRIDGE_APU_START_AVAIL = "L:A32NX_OVHD_APU_START_PB_IS_AVAILABLE, bool";
+const int JETBRIDGE_APU_START_AVAIL_LEN = 44;
+const char* JETBRIDGE_APU_BLEED = "L:A32NX_OVHD_PNEU_APU_BLEED_PB_IS_ON, bool";
+const int JETBRIDGE_APU_BLEED_LEN = 42;
+
+jetbridge::Client* jetbridgeClient = 0;
+#endif
+
 bool quit = false;
 HANDLE hSimConnect = NULL;
 extern const char* versionString;
@@ -50,7 +75,7 @@ long writeDataSize = sizeof(WriteData);
 long instrumentsDataSize = sizeof(SimVars);
 long autopilotDataSize = (long)((LONG_PTR)(&simVars.autothrottleActive) + (long)sizeof(double) - (LONG_PTR)&simVars);
 long radioDataSize = (long)((LONG_PTR)(&simVars.transponderCode) + (long)sizeof(double) - (LONG_PTR)&simVars);
-long lightsDataSize = (long)((LONG_PTR)(&simVars.apuBleed) + (long)sizeof(double) - (LONG_PTR)&simVars);
+long lightsDataSize = (long)((LONG_PTR)(&simVars.apuPercentRpm) + (long)sizeof(double) - (LONG_PTR)&simVars);
 
 int active = -1;
 int bytes;
@@ -78,7 +103,73 @@ enum REQUEST_ID {
     REQ_ID
 };
 
-void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pContext)
+#ifdef jetbridgeFallback
+void readJetbridgeVar(const char *var)
+{
+    char rpnCode[128];
+    sprintf_s(rpnCode, "(%s)", var);
+    jetbridgeClient->request(rpnCode);
+}
+
+void writeJetbridgeVar(const char* var, double val)
+{
+    // FS2020 uses RPN (Reverse Polish Notation).
+    char rpnCode[128];
+    sprintf_s(rpnCode, "%f (>%s)", val, var);
+    jetbridgeClient->request(rpnCode);
+}
+
+void updateVarFromJetbridge(const char* data)
+{
+    if (strncmp(&data[1], JETBRIDGE_APU_MASTER_SW, JETBRIDGE_APU_MASTER_SW_LEN) == 0) {
+        simVars.apuMasterSw = atof(&data[JETBRIDGE_APU_MASTER_SW_LEN] + 2);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_APU_START, JETBRIDGE_APU_START_LEN) == 0) {
+        simVars.apuStart = atof(&data[JETBRIDGE_APU_START_LEN] + 2);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_APU_START_AVAIL, JETBRIDGE_APU_START_AVAIL_LEN) == 0) {
+        simVars.apuStartAvail = atof(&data[JETBRIDGE_APU_START_AVAIL_LEN] + 2);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_APU_BLEED, JETBRIDGE_APU_BLEED_LEN) == 0) {
+        simVars.apuBleed = atof(&data[JETBRIDGE_APU_BLEED_LEN] + 2);
+    }
+}
+
+void jetbridgeButtonPress(int eventId, double value)
+{
+    switch (eventId) {
+    case KEY_APU_OFF_SWITCH:
+        writeJetbridgeVar(JETBRIDGE_APU_MASTER_SW, value);
+        break;
+    case KEY_APU_STARTER:
+        writeJetbridgeVar(JETBRIDGE_APU_START, value);
+        break;
+    case KEY_BLEED_AIR_SOURCE_CONTROL_SET:
+        writeJetbridgeVar(JETBRIDGE_APU_BLEED, value);
+        break;
+    }
+}
+
+void pollJetbridge()
+{
+    // Use low frequency for jetbridge as vars not critical
+    int loopMillis = 500;
+
+    while (!quit)
+    {
+        if (simVars.connected) {
+            readJetbridgeVar(JETBRIDGE_APU_MASTER_SW);
+            readJetbridgeVar(JETBRIDGE_APU_START);
+            readJetbridgeVar(JETBRIDGE_APU_START_AVAIL);
+            readJetbridgeVar(JETBRIDGE_APU_BLEED);
+        }
+
+        Sleep(loopMillis);
+    }
+}
+#endif
+
+void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContext)
 {
     static int displayDelay = 0;
 
@@ -112,7 +203,7 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
 
     case SIMCONNECT_RECV_ID_SIMOBJECT_DATA:
     {
-        SIMCONNECT_RECV_SIMOBJECT_DATA* pObjData = (SIMCONNECT_RECV_SIMOBJECT_DATA*)pData;
+        auto pObjData = static_cast<SIMCONNECT_RECV_SIMOBJECT_DATA*>(pData);
 
         switch (pObjData->dwRequestID)
         {
@@ -123,7 +214,7 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
             //    displayDelay--;
             //}
             //else {
-            //    printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
             //}
             break;
         }
@@ -136,6 +227,18 @@ void CALLBACK MyDispatchProcRD(SIMCONNECT_RECV* pData, DWORD cbData, void* pCont
 
         break;
     }
+
+#ifdef jetbridgeFallback
+    case SIMCONNECT_RECV_ID_CLIENT_DATA: {
+        auto pClientData = static_cast<SIMCONNECT_RECV_CLIENT_DATA*>(pData);
+
+        if (pClientData->dwRequestID == jetbridge::kDownlinkRequest) {
+            auto packet = static_cast<jetbridge::Packet*>((jetbridge::Packet*)&pClientData->dwData);
+            updateVarFromJetbridge(packet->data);
+        }
+        break;
+    }
+#endif
 
     case SIMCONNECT_RECV_ID_QUIT:
     {
@@ -178,6 +281,10 @@ void addReadDefs()
                 varSize += dataLen;
             }
         }
+        else if (_stricmp(SimVarDefs[i][1], "jetbridge") == 0) {
+            // SimConnect variables start after all Jetbridge variables
+            varStart++;
+        }
         else {
             // Add double (float64)
             if (SimConnect_AddToDataDefinition(hSimConnect, DEF_READ_ALL, SimVarDefs[i][0], SimVarDefs[i][1]) < 0) {
@@ -201,6 +308,24 @@ void mapEvents()
             printf("Map event failed: %s\n", WriteEvents[i].name);
         }
     }
+}
+
+void init()
+{
+    addReadDefs();
+    mapEvents();
+
+    // Start requesting data
+    if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_READ_ALL, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_VISUAL_FRAME, 0, 0, 0, 0) < 0) {
+        printf("Failed to start requesting data\n");
+    }
+
+#ifdef jetbridgeFallback
+    if (jetbridgeClient != 0) {
+        delete jetbridgeClient;
+    }
+    jetbridgeClient = new jetbridge::Client(hSimConnect);
+#endif
 }
 
 void cleanUp()
@@ -236,13 +361,18 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
     printf("Searching for local MS FS2020...\n");
     simVars.connected = 0;
 
+#ifdef jetbridgeFallback
+    std::thread jetbridgeThread(pollJetbridge);
+#endif
+
     HRESULT result;
 
+    int loopMillis = 10;
     int retryDelay = 0;
     while (!quit)
     {
         if (simVars.connected) {
-            result = SimConnect_CallDispatch(hSimConnect, MyDispatchProcRD, NULL);
+            result = SimConnect_CallDispatch(hSimConnect, MyDispatchProc, NULL);
             if (result != 0) {
                 printf("Disconnected from MS FS2020\n");
                 simVars.connected = 0;
@@ -256,22 +386,21 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
             result = SimConnect_Open(&hSimConnect, "Instrument Data Link", NULL, 0, 0, 0);
             if (result == 0) {
                 printf("Connected to MS FS2020\n");
-                addReadDefs();
-                mapEvents();
+                init();
                 simVars.connected = 1;
-
-                // Start requesting data
-                if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_READ_ALL, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_VISUAL_FRAME, 0, 0, 0, 0) < 0) {
-                    printf("Failed to start requesting data\n");
-                }
             }
             else {
                 retryDelay = 200;
             }
         }
 
-        Sleep(10);
+        Sleep(loopMillis);
     }
+
+#ifdef jetbridgeFallback
+    // Wait for thread to exit
+    jetbridgeThread.join();
+#endif
 
     cleanUp();
     return 0;
@@ -296,6 +425,10 @@ void processRequest()
 #endif
             return;
         }
+
+#ifdef jetbridgeFallback
+        jetbridgeButtonPress(recvBuffer.writeData.eventId, recvBuffer.writeData.value);
+#endif
 
         if (SimConnect_TransmitClientEvent(hSimConnect, 0, recvBuffer.writeData.eventId, (DWORD)recvBuffer.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
             printf("Failed to transmit event: %d\n", recvBuffer.writeData.eventId);
