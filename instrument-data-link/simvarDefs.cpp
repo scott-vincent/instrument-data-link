@@ -71,6 +71,7 @@ const char* SimVarDefs[][2] = {
     { "Turn Indicator Rate", "radians per second" },
     { "Turn Coordinator Ball", "position" },
     { "Elevator Trim Position", "degrees" },
+    { "Rudder Trim Pct", "percent" },
     { "Flaps Num Handle Positions", "number" },
     { "Flaps Handle Index", "number" },
     { "Spoilers Handle Position", "percent" },
