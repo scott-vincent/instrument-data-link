@@ -210,13 +210,12 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
         case REQ_ID:
         {
             memcpy(varStart, &pObjData->dwData, varSize);
-            if (displayDelay > 0) {
-                displayDelay--;
-            }
-            else {
-                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-                printf("Transponder: %f\n", simVars.transponderState);
-            }
+            //if (displayDelay > 0) {
+            //    displayDelay--;
+            //}
+            //else {
+            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //}
             break;
         }
         default:
