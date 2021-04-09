@@ -36,6 +36,7 @@ struct SimVars
     double nav2Standby = 113.90;
     double adfFreq = 394;
     double adfStandby = 368;
+    double transponderState = 0;
     double transponderCode = 4608;
     // No vars after here required by Radio panel
 
@@ -141,6 +142,9 @@ enum EVENT_ID {
     KEY_FLAPS_INCR,
     KEY_FLAPS_DECR,
     KEY_FLAPS_UP,
+    KEY_FLAPS_1,
+    KEY_FLAPS_2,
+    KEY_FLAPS_3,
     KEY_FLAPS_DOWN,
     KEY_SPOILERS_ARM_SET,
     KEY_SPOILERS_OFF,

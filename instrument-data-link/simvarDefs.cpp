@@ -33,6 +33,7 @@ const char* SimVarDefs[][2] = {
     { "Nav Standby Frequency:2", "mhz" },
     { "Adf Active Frequency:1", "khz" },
     { "Adf Standby Frequency:1", "khz" },
+    { "Transponder State:1", "enum" },
     { "Transponder Code:1", "bco16" },
 
     // Vars for Autopilot panel
@@ -136,6 +137,9 @@ WriteEvent WriteEvents[] = {
     { KEY_FLAPS_INCR, "FLAPS_INCR" },
     { KEY_FLAPS_DECR, "FLAPS_DECR" },
     { KEY_FLAPS_UP, "FLAPS_UP" },
+    { KEY_FLAPS_1, "FLAPS_1" },
+    { KEY_FLAPS_2, "FLAPS_2" },
+    { KEY_FLAPS_3, "FLAPS_3" },
     { KEY_FLAPS_DOWN, "FLAPS_DOWN" },
     { KEY_SPOILERS_ARM_SET, "SPOILERS_ARM_SET" },
     { KEY_SPOILERS_OFF, "SPOILERS_OFF" },
