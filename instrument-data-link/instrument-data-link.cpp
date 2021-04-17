@@ -13,6 +13,20 @@
  // Data will be served on this port
 const int Port = 52020;
 
+// Change the next line to false if you always want to send
+// full data across the network rather than deltas.
+const bool UseDeltas = true;
+
+// Uncomment the next line to show network data usage.
+// This should be a lot lower when using deltas.
+//#define SHOW_NETWORK_USAGE
+
+#ifdef SHOW_NETWORK_USAGE
+ULONGLONG networkStart = 0;
+long networkIn;
+long networkOut;
+#endif
+
 // Some SimConnect events don't work with certain aircraft
 // so use vJoy to simulate joystick button preses instead.
 // To use vJoy you must install the device driver from here:
@@ -67,8 +81,8 @@ extern const char* SimVarDefs[][2];
 extern WriteEvent WriteEvents[];
 
 SimVars simVars;
-double *varStart = (double *)&simVars + 1;
-int varSize = 0;
+double *varsStart = (double *)&simVars + 1;
+int varsSize = 0;
 
 // Some panels request less data to save bandwidth
 long writeDataSize = sizeof(WriteData);
@@ -76,6 +90,13 @@ long instrumentsDataSize = sizeof(SimVars);
 long autopilotDataSize = (long)((LONG_PTR)(&simVars.autothrottleActive) + (long)sizeof(double) - (LONG_PTR)&simVars);
 long radioDataSize = (long)((LONG_PTR)(&simVars.transponderCode) + (long)sizeof(double) - (LONG_PTR)&simVars);
 long lightsDataSize = (long)((LONG_PTR)(&simVars.apuPercentRpm) + (long)sizeof(double) - (LONG_PTR)&simVars);
+
+char deltaData[2048];
+long deltaSize;
+char* prevInstrumentsData = NULL;
+char* prevAutopilotData = NULL;
+char* prevRadioData = NULL;
+char* prevLightsData = NULL;
 
 int active = -1;
 int bytes;
@@ -85,11 +106,9 @@ bool lightsPanelConnected = false;
 SOCKET sockfd;
 sockaddr_in senderAddr;
 int addrSize = sizeof(senderAddr);
-
-struct {
-    long requestedSize;
-    WriteData writeData;
-} recvBuffer;
+Request request;
+const int deltaDoubleSize = sizeof(DeltaDouble);
+const int deltaStringSize = sizeof(DeltaString);
 
 // Create server thread
 void server();
@@ -209,7 +228,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
         {
         case REQ_ID:
         {
-            memcpy(varStart, &pObjData->dwData, varSize);
+            memcpy(varsStart, &pObjData->dwData, varsSize);
             //if (displayDelay > 0) {
             //    displayDelay--;
             //}
@@ -258,32 +277,29 @@ void addReadDefs()
 
         if (_strnicmp(SimVarDefs[i][1], "string", 6) == 0) {
             // Add string
-            SIMCONNECT_DATATYPE dataType = SIMCONNECT_DATATYPE_STRING256;
-            int dataLen = 256;
+            SIMCONNECT_DATATYPE dataType;
+            int dataLen;
 
-            if (strcmp(SimVarDefs[i][1], "string8") == 0) {
-                dataType = SIMCONNECT_DATATYPE_STRING8;
-                dataLen = 8;
-            }
-            else if (strcmp(SimVarDefs[i][1], "string32") == 0) {
+            if (strcmp(SimVarDefs[i][1], "string32") == 0) {
                 dataType = SIMCONNECT_DATATYPE_STRING32;
                 dataLen = 32;
             }
-            else if (strcmp(SimVarDefs[i][1], "string64") == 0) {
-                dataType = SIMCONNECT_DATATYPE_STRING64;
-                dataLen = 64;
+            else {
+                printf("Unsupported string type: %s\n", SimVarDefs[i][1]);
+                dataType = SIMCONNECT_DATATYPE_STRING32;
+                dataLen = 32;
             }
 
             if (SimConnect_AddToDataDefinition(hSimConnect, DEF_READ_ALL, SimVarDefs[i][0], NULL, dataType) < 0) {
                 printf("Data def failed: %s (string)\n", SimVarDefs[i][0]);
             }
             else {
-                varSize += dataLen;
+                varsSize += dataLen;
             }
         }
         else if (_stricmp(SimVarDefs[i][1], "jetbridge") == 0) {
             // SimConnect variables start after all Jetbridge variables
-            varStart++;
+            varsStart++;
         }
         else {
             // Add double (float64)
@@ -291,7 +307,7 @@ void addReadDefs()
                 printf("Data def failed: %s, %s\n", SimVarDefs[i][0], SimVarDefs[i][1]);
             }
             else {
-                varSize += sizeof(double);
+                varsSize += sizeof(double);
             }
         }
     }
@@ -346,6 +362,22 @@ void cleanUp()
 
     // Wait for server to quit
     serverThread.join();
+
+    if (prevInstrumentsData != NULL) {
+        delete [] prevInstrumentsData;
+    }
+
+    if (prevAutopilotData != NULL) {
+        delete [] prevAutopilotData;
+    }
+
+    if (prevRadioData != NULL) {
+        delete [] prevRadioData;
+    }
+
+    if (prevLightsData != NULL) {
+        delete [] prevLightsData;
+    }
 
     WSACleanup();
     printf("Finished\n");
@@ -406,20 +438,117 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
     return 0;
 }
 
+void addDeltaDouble(long offset, double newVal)
+{
+    DeltaDouble deltaDouble;
+    deltaDouble.offset = offset;
+    deltaDouble.data = newVal;
+
+    memcpy(deltaData + deltaSize, &deltaDouble, deltaDoubleSize);
+    deltaSize += deltaDoubleSize;
+}
+
+void addDeltaString(long offset, char *newVal)
+{
+    DeltaString deltaString;
+    deltaString.offset = 2048 + offset;     // Add 2048 so we know it is a string
+    strncpy(deltaString.data, newVal, 32);  // Only support string32
+
+    memcpy(deltaData + deltaSize, &deltaString, deltaStringSize);
+    deltaSize += deltaStringSize;
+}
+
+/// <summary>
+/// If this a new connection send all the data otherwise only send
+/// the delta, i.e. data that has changed since we last sent it.
+/// This should reduce network bandwidth usage hugely.
+/// </summary>
+void sendDelta(char** prevSimVars, long dataSize)
+{
+    if (*prevSimVars == NULL || !UseDeltas) {
+        // No prev data so send full rather than delta
+        bytes = sendto(sockfd, (char*)&simVars, dataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+#ifdef SHOW_NETWORK_USAGE
+        networkOut += bytes;
+#endif
+
+        // Update prev data
+        *prevSimVars = new char[dataSize];
+        memcpy(*prevSimVars, &simVars, dataSize);
+        return;
+    }
+
+    // Initialise delta data
+    deltaSize = 0;
+
+    // Always send 'connected' var
+    addDeltaDouble(0, simVars.connected);
+    long offset = sizeof(double);
+
+    // Add all vars that have changed to delta data
+    for (int i = 0;; i++) {
+        if (SimVarDefs[i][0] == NULL) {
+            break;
+        }
+
+        char* oldVarPtr = *prevSimVars + offset;
+        char* newVarPtr = (char*)&simVars + offset;
+
+        if (_strnicmp(SimVarDefs[i][1], "string", 6) == 0) {
+            // Has string changed?
+            if (strncmp(oldVarPtr, newVarPtr, 32) != 0) {
+                addDeltaString(offset, newVarPtr);
+            }
+
+            offset += 32;
+        }
+        else {
+            // Has double changed?
+            double* oldVar = (double*)oldVarPtr;
+            double* newVar = (double*)newVarPtr;
+            if (*oldVar != *newVar) {
+                addDeltaDouble(offset, *newVar);
+            }
+
+            offset += 8;
+        }
+
+        // Next variable
+        if (offset >= dataSize) {
+            break;
+        }
+    }
+
+    if (deltaSize < dataSize) {
+        // Send delta data
+        bytes = sendto(sockfd, (char*)&deltaData, deltaSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+    }
+    else {
+        // Send full data
+        bytes = sendto(sockfd, (char*)&simVars, dataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+    }
+#ifdef SHOW_NETWORK_USAGE
+    networkOut += bytes;
+#endif
+
+    // Update prev data
+    memcpy(*prevSimVars, &simVars, dataSize);
+}
+
 void processRequest()
 {
-    if (recvBuffer.requestedSize == writeDataSize) {
+    if (request.requestedSize == writeDataSize) {
         // This is a write
         if (!simVars.connected) {
             return;
         }
 
-        if (recvBuffer.writeData.eventId >= VJOY_BUTTONS && recvBuffer.writeData.eventId <= VJOY_BUTTONS_END) {
+        if (request.writeData.eventId >= VJOY_BUTTONS && request.writeData.eventId <= VJOY_BUTTONS_END) {
 #ifdef vJoyFallback
             if (!vJoyInitialised) {
                 vJoyInit();
             }
-            vJoyButtonPress(recvBuffer.writeData.eventId);
+            vJoyButtonPress(request.writeData.eventId);
 #else
             printf("vJoy button event ignored - vJoyFallback is not enabled\n");
 #endif
@@ -427,66 +556,93 @@ void processRequest()
         }
 
 #ifdef jetbridgeFallback
-        jetbridgeButtonPress(recvBuffer.writeData.eventId, recvBuffer.writeData.value);
+        jetbridgeButtonPress(request.writeData.eventId, request.writeData.value);
 #endif
 
-        if (SimConnect_TransmitClientEvent(hSimConnect, 0, recvBuffer.writeData.eventId, (DWORD)recvBuffer.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
-            printf("Failed to transmit event: %d\n", recvBuffer.writeData.eventId);
+        if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
+            printf("Failed to transmit event: %d\n", request.writeData.eventId);
         }
 
-        if (recvBuffer.writeData.eventId == KEY_COM1_STBY_RADIO_SET || recvBuffer.writeData.eventId == KEY_COM2_STBY_RADIO_SET) {
+        if (request.writeData.eventId == KEY_COM1_STBY_RADIO_SET || request.writeData.eventId == KEY_COM2_STBY_RADIO_SET) {
             // Check for extra .5 on value
-            int val = (int)(recvBuffer.writeData.value * 10 + 0.01);
+            int val = (int)(request.writeData.value * 10 + 0.01);
             if (val % 10 >= 4) {
-                if (recvBuffer.writeData.eventId == KEY_COM1_STBY_RADIO_SET) {
-                    recvBuffer.writeData.eventId = KEY_COM1_RADIO_FRACT_INC;
+                if (request.writeData.eventId == KEY_COM1_STBY_RADIO_SET) {
+                    request.writeData.eventId = KEY_COM1_RADIO_FRACT_INC;
                 }
                 else {
-                    recvBuffer.writeData.eventId = KEY_COM2_RADIO_FRACT_INC;
+                    request.writeData.eventId = KEY_COM2_RADIO_FRACT_INC;
                 }
-                if (SimConnect_TransmitClientEvent(hSimConnect, 0, recvBuffer.writeData.eventId, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
-                    printf("Failed to transmit event: %d\n", recvBuffer.writeData.eventId);
+                if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
+                    printf("Failed to transmit event: %d\n", request.writeData.eventId);
                 }
             }
         }
     }
-    else if (recvBuffer.requestedSize == instrumentsDataSize) {
+    else if (request.requestedSize == instrumentsDataSize) {
         // Send instrument data to the client that polled us
-        bytes = sendto(sockfd, (char*)&simVars, instrumentsDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
-        if (active != 1) {
-            printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
-            active = 1;
+        if (active != 1 || request.wantFullData) {
+            if (active != 1) {
+                printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+                active = 1;
+            }
+            if (prevInstrumentsData != NULL) {
+                delete [] prevInstrumentsData;
+                prevInstrumentsData = NULL;
+            }
         }
+        sendDelta(&prevInstrumentsData, instrumentsDataSize);
     }
-    else if (recvBuffer.requestedSize == autopilotDataSize) {
+    else if (request.requestedSize == autopilotDataSize) {
         // Send autopilot data to the client that polled us
-        bytes = sendto(sockfd, (char*)&simVars, autopilotDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
-        if (!autopilotPanelConnected) {
-            printf("Autopilot panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
-            autopilotPanelConnected = true;
+        if (!autopilotPanelConnected || request.wantFullData) {
+            if (!autopilotPanelConnected) {
+                printf("Autopilot panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+                autopilotPanelConnected = true;
+            }
+            if (prevAutopilotData != NULL) {
+                delete [] prevAutopilotData;
+                prevAutopilotData = NULL;
+            }
         }
+        sendDelta(&prevAutopilotData, autopilotDataSize);
     }
-    else if (recvBuffer.requestedSize == radioDataSize) {
+    else if (request.requestedSize == radioDataSize) {
         // Send radio data to the client that polled us
-        bytes = sendto(sockfd, (char*)&simVars, radioDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
-        if (!radioPanelConnected) {
-            printf("Radio panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
-            radioPanelConnected = true;
+        if (!radioPanelConnected || request.wantFullData) {
+            if (!radioPanelConnected) {
+                printf("Radio panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+                radioPanelConnected = true;
+            }
+            if (prevRadioData != NULL) {
+                delete [] prevRadioData;
+                prevRadioData = NULL;
+            }
         }
+        sendDelta(&prevRadioData, radioDataSize);
     }
-    else if (recvBuffer.requestedSize == lightsDataSize) {
+    else if (request.requestedSize == lightsDataSize) {
         // Send power/lights data to the client that polled us
-        bytes = sendto(sockfd, (char*)&simVars, lightsDataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
-        if (!lightsPanelConnected) {
-            printf("Power/Lights panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
-            lightsPanelConnected = true;
+        if (!lightsPanelConnected || request.wantFullData) {
+            if (!lightsPanelConnected) {
+                printf("Power/Lights panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
+                lightsPanelConnected = true;
+            }
+            if (prevLightsData != NULL) {
+                delete [] prevLightsData;
+                prevLightsData = NULL;
+            }
         }
+        sendDelta(&prevLightsData, lightsDataSize);
     }
     else {
         // Data size mismatch
         bytes = sendto(sockfd, (char*)&instrumentsDataSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, addrSize);
+#ifdef SHOW_NETWORK_USAGE
+        networkOut += bytes;
+#endif
         printf("Client at %s requested %ld bytes instead of %ld bytes\n",
-            inet_ntoa(senderAddr.sin_addr), recvBuffer.requestedSize, instrumentsDataSize);
+            inet_ntoa(senderAddr.sin_addr), request.requestedSize, instrumentsDataSize);
     }
 }
 
@@ -532,7 +688,10 @@ void server()
         // Wait for instrument panel to poll (non-blocking, 1 second timeout)
         int sel = select(FD_SETSIZE, &fds, 0, 0, &timeout);
         if (sel > 0) {
-            bytes = recvfrom(sockfd, (char*)&recvBuffer, sizeof(recvBuffer), 0, (SOCKADDR*)&senderAddr, &addrSize);
+            bytes = recvfrom(sockfd, (char*)&request, sizeof(request), 0, (SOCKADDR*)&senderAddr, &addrSize);
+#ifdef SHOW_NETWORK_USAGE
+            networkIn += bytes;
+#endif
             if (bytes > 0) {
                 processRequest();
             }
@@ -548,6 +707,21 @@ void server()
             printf("Waiting for instrument panel to connect\n");
             active = 0;
         }
+
+#ifdef SHOW_NETWORK_USAGE
+        ULONGLONG now = GetTickCount64();
+        double elapsedMillis = now - networkStart;
+        if (elapsedMillis > 2000) {
+            if (networkStart > 0) {
+                double kbInPerSec = networkIn / elapsedMillis;
+                double kbOutPerSec = networkOut / elapsedMillis;
+                printf("Network Usage: In = %.2f KB/s, Out = %.2f KB/s\n", kbInPerSec, kbOutPerSec);
+            }
+            networkStart = now;
+            networkIn = 0;
+            networkOut = 0;
+        }
+#endif
     }
 
     closesocket(sockfd);
