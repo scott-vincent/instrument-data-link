@@ -154,19 +154,21 @@ void updateVarFromJetbridge(const char* data)
     }
 }
 
-void jetbridgeButtonPress(int eventId, double value)
+bool jetbridgeButtonPress(int eventId, double value)
 {
     switch (eventId) {
     case KEY_APU_OFF_SWITCH:
         writeJetbridgeVar(JETBRIDGE_APU_MASTER_SW, value);
-        break;
+        return true;
     case KEY_APU_STARTER:
         writeJetbridgeVar(JETBRIDGE_APU_START, value);
-        break;
+        return true;
     case KEY_BLEED_AIR_SOURCE_CONTROL_SET:
         writeJetbridgeVar(JETBRIDGE_APU_BLEED, value);
-        break;
+        return true;
     }
+
+    return false;
 }
 
 void pollJetbridge()
@@ -556,7 +558,9 @@ void processRequest()
         }
 
 #ifdef jetbridgeFallback
-        jetbridgeButtonPress(request.writeData.eventId, request.writeData.value);
+        if (jetbridgeButtonPress(request.writeData.eventId, request.writeData.value)) {
+            return;
+        }
 #endif
 
         if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
