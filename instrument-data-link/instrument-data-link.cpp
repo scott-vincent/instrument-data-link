@@ -70,6 +70,10 @@ const char* JETBRIDGE_APU_START_AVAIL = "L:A32NX_OVHD_APU_START_PB_IS_AVAILABLE,
 const int JETBRIDGE_APU_START_AVAIL_LEN = 44;
 const char* JETBRIDGE_APU_BLEED = "L:A32NX_OVHD_PNEU_APU_BLEED_PB_IS_ON, bool";
 const int JETBRIDGE_APU_BLEED_LEN = 42;
+const char* JETBRIDGE_ELEC_BAT1 = "L:A32NX_OVHD_ELEC_BAT_10_PB_IS_AUTO, bool";
+const int JETBRIDGE_ELEC_BAT1_LEN = 41;
+const char* JETBRIDGE_ELEC_BAT2 = "L:A32NX_OVHD_ELEC_BAT_11_PB_IS_AUTO, bool";
+const int JETBRIDGE_ELEC_BAT2_LEN = 41;
 
 jetbridge::Client* jetbridgeClient = 0;
 #endif
@@ -166,8 +170,13 @@ bool jetbridgeButtonPress(int eventId, double value)
     case KEY_BLEED_AIR_SOURCE_CONTROL_SET:
         writeJetbridgeVar(JETBRIDGE_APU_BLEED, value);
         return true;
+    case KEY_ELEC_BAT1:
+        writeJetbridgeVar(JETBRIDGE_ELEC_BAT1, value);
+        return true;
+    case KEY_ELEC_BAT2:
+        writeJetbridgeVar(JETBRIDGE_ELEC_BAT2, value);
+        return true;
     }
-
     return false;
 }
 
