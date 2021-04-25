@@ -157,10 +157,10 @@ void updateVarFromJetbridge(const char* data)
         simVars.apuBleed = atof(&data[JETBRIDGE_APU_BLEED_LEN] + 2);
     }
     else if (strncmp(&data[1], JETBRIDGE_ELEC_BAT1, JETBRIDGE_ELEC_BAT1_LEN) == 0) {
-        simVars.apuBleed = atof(&data[JETBRIDGE_ELEC_BAT1_LEN] + 2);
+        simVars.elecBat1 = atof(&data[JETBRIDGE_ELEC_BAT1_LEN] + 2);
     }
     else if (strncmp(&data[1], JETBRIDGE_ELEC_BAT2, JETBRIDGE_ELEC_BAT2_LEN) == 0) {
-        simVars.apuBleed = atof(&data[JETBRIDGE_ELEC_BAT2_LEN] + 2);
+        simVars.elecBat2 = atof(&data[JETBRIDGE_ELEC_BAT2_LEN] + 2);
     }
 }
 
