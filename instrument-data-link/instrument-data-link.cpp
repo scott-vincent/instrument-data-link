@@ -156,6 +156,12 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_APU_BLEED, JETBRIDGE_APU_BLEED_LEN) == 0) {
         simVars.apuBleed = atof(&data[JETBRIDGE_APU_BLEED_LEN] + 2);
     }
+    else if (strncmp(&data[1], JETBRIDGE_ELEC_BAT1, JETBRIDGE_ELEC_BAT1_LEN) == 0) {
+        simVars.apuBleed = atof(&data[JETBRIDGE_ELEC_BAT1_LEN] + 2);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_ELEC_BAT2, JETBRIDGE_ELEC_BAT2_LEN) == 0) {
+        simVars.apuBleed = atof(&data[JETBRIDGE_ELEC_BAT2_LEN] + 2);
+    }
 }
 
 bool jetbridgeButtonPress(int eventId, double value)
@@ -192,6 +198,8 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_APU_START);
             readJetbridgeVar(JETBRIDGE_APU_START_AVAIL);
             readJetbridgeVar(JETBRIDGE_APU_BLEED);
+            readJetbridgeVar(JETBRIDGE_ELEC_BAT1);
+            readJetbridgeVar(JETBRIDGE_ELEC_BAT2);
         }
 
         Sleep(loopMillis);
@@ -213,17 +221,22 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
         {
         case SIM_START:
         {
+            printf("SimConnect Start event\n");
+            fflush(stdout);
             break;
         }
 
         case SIM_STOP:
         {
+            printf("SimConnect Stop event\n");
+            fflush(stdout);
             break;
         }
 
         default:
         {
-            printf("Unknown event id: %ld\n", evt->uEventID);
+            printf("SimConnect unknown event id: %ld\n", evt->uEventID);
+            fflush(stdout);
             break;
         }
         }
@@ -239,7 +252,14 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
         {
         case REQ_ID:
         {
-            memcpy(varsStart, &pObjData->dwData, varsSize);
+            if (pObjData->dwSize < varsSize) {
+                printf("Error: SimConnect expected %d bytes but received %d bytes\n",
+                    varsSize, pObjData->dwSize);
+                fflush(stdout);
+            }
+            else {
+                memcpy(varsStart, &pObjData->dwData, varsSize);
+            }
             //if (displayDelay > 0) {
             //    displayDelay--;
             //}
@@ -250,7 +270,8 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
         }
         default:
         {
-            printf("Unknown request id: %ld\n", pObjData->dwRequestID);
+            printf("SimConnect unknown request id: %ld\n", pObjData->dwRequestID);
+            fflush(stdout);
             break;
         }
         }
@@ -274,6 +295,8 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
     {
         // Comment out next line to stay running when FS2020 quits
         //quit = true;
+        printf("SimConnect Quit\n");
+        fflush(stdout);
         break;
     }
     }
