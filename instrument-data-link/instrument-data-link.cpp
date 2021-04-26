@@ -305,7 +305,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
 void addReadDefs()
 {
     varsStart = (double*)&simVars + 1;
-    int varsSize = 0;
+    varsSize = 0;
 
     for (int i = 0;; i++) {
         if (SimVarDefs[i][0] == NULL) {
