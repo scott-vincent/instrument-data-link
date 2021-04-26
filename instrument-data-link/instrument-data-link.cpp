@@ -85,8 +85,8 @@ extern const char* SimVarDefs[][2];
 extern WriteEvent WriteEvents[];
 
 SimVars simVars;
-double *varsStart = (double *)&simVars + 1;
-int varsSize = 0;
+double *varsStart;
+int varsSize;
 
 // Some panels request less data to save bandwidth
 long writeDataSize = sizeof(WriteData);
@@ -304,6 +304,9 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
 
 void addReadDefs()
 {
+    varsStart = (double*)&simVars + 1;
+    int varsSize = 0;
+
     for (int i = 0;; i++) {
         if (SimVarDefs[i][0] == NULL) {
             break;
