@@ -10,7 +10,7 @@
 #include "simvarDefs.h"
 #include "SimConnect.h"
 
- // Data will be served on this port
+// Data will be served on this port
 const int Port = 52020;
 
 // Change the next line to false if you always want to send
@@ -597,6 +597,24 @@ void processRequest()
             return;
         }
 #endif
+
+        // Process custom events
+        if (request.writeData.eventId == KEY_CHECK_CREW_SEATS) {
+            // Send 0 if aircraft on ground or 1 if in the air
+            double crewSeats = simVars.altAboveGround < 50 ? 0 : 1;
+            sendto(sockfd, (char*)&crewSeats, sizeof(double), 0, (SOCKADDR*)&senderAddr, addrSize);
+            return;
+        }
+        else if (request.writeData.eventId == KEY_TOGGLE_PUSHBACK) {
+            double pushback = simVars.pushbackState < 3 ? 1 : 0;
+            if (simVars.altAboveGround > 50) {
+                // No pushback available if in air
+                pushback = -1;
+                return;
+            }
+            sendto(sockfd, (char*)&pushback, sizeof(double), 0, (SOCKADDR*)&senderAddr, addrSize);
+            // Don't return (need to trigger the pushback)
+        }
 
         if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
             printf("Failed to transmit event: %d\n", request.writeData.eventId);
