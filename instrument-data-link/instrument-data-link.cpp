@@ -572,6 +572,35 @@ void sendDelta(char** prevSimVars, long dataSize)
     memcpy(*prevSimVars, &simVars, dataSize);
 }
 
+/// <summary>
+/// If one of two event buttons pressed return either EVENT_NONE or the
+/// event (sound) that should be played depending on current aircraft state.
+/// </summary>
+EVENT_ID getCustomEvent(int eventNum)
+{
+    EVENT_ID event = EVENT_NONE;
+    bool isOnGround = simVars.altAboveGround < 50;
+
+    switch (eventNum) {
+    case 1:
+        if (isOnGround) {
+            return EVENT_SEATS_FOR_TAKEOFF;
+        }
+        else {
+            return EVENT_SEATS_FOR_LANDING;
+        }
+        break;
+
+    case 2:
+        if (isOnGround) {
+            return simVars.pushbackState < 3 ? EVENT_PUSHBACK_STOP : EVENT_PUSHBACK_START;
+        }
+        break;
+    }
+
+    return EVENT_NONE;
+}
+
 void processRequest()
 {
     if (request.requestedSize == writeDataSize) {
@@ -599,21 +628,17 @@ void processRequest()
 #endif
 
         // Process custom events
-        if (request.writeData.eventId == KEY_CHECK_CREW_SEATS) {
-            // Send 0 if aircraft on ground or 1 if in the air
-            double crewSeats = simVars.altAboveGround < 50 ? 0 : 1;
-            sendto(sockfd, (char*)&crewSeats, sizeof(double), 0, (SOCKADDR*)&senderAddr, addrSize);
-            return;
-        }
-        else if (request.writeData.eventId == KEY_TOGGLE_PUSHBACK) {
-            double pushback = simVars.pushbackState < 3 ? 1 : 0;
-            if (simVars.altAboveGround > 50) {
-                // No pushback available if in air
-                pushback = -1;
+        if (request.writeData.eventId == KEY_CHECK_EVENT) {
+            int eventNum = (int)(request.writeData.value);
+            EVENT_ID event = getCustomEvent(eventNum);
+            sendto(sockfd, (char*)&event, sizeof(double), 0, (SOCKADDR*)&senderAddr, addrSize);
+            if (event == EVENT_PUSHBACK_START || event == EVENT_PUSHBACK_STOP) {
+                // Don't return (need to trigger the pushback)
+                request.writeData.eventId == KEY_TOGGLE_PUSHBACK;
+            }
+            else {
                 return;
             }
-            sendto(sockfd, (char*)&pushback, sizeof(double), 0, (SOCKADDR*)&senderAddr, addrSize);
-            // Don't return (need to trigger the pushback)
         }
 
         if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
