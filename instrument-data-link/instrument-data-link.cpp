@@ -78,7 +78,20 @@ const int JETBRIDGE_ELEC_BAT2_LEN = 41;
 jetbridge::Client* jetbridgeClient = 0;
 #endif
 
+enum FLIGHT_PHASE {
+    GROUND,
+    TAKEOFF,
+    CLIMB,
+    CRUISE,
+    DESCENT,
+    APPROACH,
+    GO_AROUND
+};
+
 bool quit = false;
+bool initiatedPushback = false;
+bool completedTakeOff = false;
+int onStandState = 0;
 HANDLE hSimConnect = NULL;
 extern const char* versionString;
 extern const char* SimVarDefs[][2];
@@ -259,6 +272,16 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             }
             else {
                 memcpy(varsStart, &pObjData->dwData, varsSize);
+            }
+            if (simVars.altAboveGround < 50) {
+                completedTakeOff = false;
+            }
+            else {
+                initiatedPushback = false;
+                onStandState = 0;
+                if (simVars.altAltitude > 10000) {
+                    completedTakeOff = true;
+                }
             }
             //if (displayDelay > 0) {
             //    displayDelay--;
@@ -573,29 +596,146 @@ void sendDelta(char** prevSimVars, long dataSize)
 }
 
 /// <summary>
-/// If one of two event buttons pressed return either EVENT_NONE or the
-/// event (sound) that should be played depending on current aircraft state.
+/// If an event button is pressed return either EVENT_NONE or the event (sound)
+/// that should be played depending on current aircraft state.
 /// </summary>
 EVENT_ID getCustomEvent(int eventNum)
 {
     EVENT_ID event = EVENT_NONE;
-    bool isOnGround = simVars.altAboveGround < 50;
+
+    FLIGHT_PHASE phase = GROUND;
+    if (simVars.altAboveGround > 50) {
+        bool isClimbing = simVars.vsiVerticalSpeed > 200;
+        bool isDescending = simVars.vsiVerticalSpeed < -200;
+
+        if (simVars.altAltitude < 10000) {
+            if (!completedTakeOff) {
+                phase = TAKEOFF;
+            }
+            else if (isClimbing) {
+                phase = GO_AROUND;
+            }
+            else {
+                phase = APPROACH;
+            }
+        }
+        else if (isClimbing) {
+            phase = CLIMB;
+        }
+        else if (isDescending) {
+            phase = DESCENT;
+        }
+        else {
+            phase = CRUISE;
+        }
+    }
 
     switch (eventNum) {
     case 1:
-        if (isOnGround) {
-            return EVENT_SEATS_FOR_TAKEOFF;
+        // Event button 1 pressed
+        switch (phase) {
+            case GROUND:
+                if (completedTakeOff) {
+                    // Landed
+                    if (simVars.asiAirspeed > 0) {
+                        // Taxi in
+                        return EVENT_DOORS_TO_MANUAL;
+                    }
+                    else {
+                        // Arrived at stand
+                        return EVENT_DOORS_FOR_DISEMBARK;
+                    }
+                }
+                else if (simVars.pushbackState < 3) {
+                    // Pushing back
+                    return EVENT_DOORS_TO_AUTO;
+                }
+                else if (initiatedPushback) {
+                    // Completed pushback
+                    return EVENT_SEATS_FOR_TAKEOFF;
+                }
+                else if (simVars.asiAirspeed == 0) {
+                    // Still on stand
+                    onStandState++;
+                    switch (onStandState) {
+                        case 1:
+                            return EVENT_DOORS_FOR_BOARDING;
+                        case 2:
+                            return EVENT_WELCOME_ON_BOARD;
+                        case 3:
+                            return EVENT_BOARDING_COMPLETE;
+                    }
+                }
+                break;
+            case TAKEOFF:
+                break;
+            case CLIMB:
+                return EVENT_START_SERVING;
+                break;
+            case CRUISE:
+                return EVENT_START_SERVING;
+                break;
+            case DESCENT:
+                break;
+            case APPROACH:
+                if (simVars.altAltitude > 5000) {
+                    return EVENT_FINAL_DESCENT;
+                }
+                else {
+                    return EVENT_SEATS_FOR_LANDING;
+                }
+            case GO_AROUND:
+                break;
         }
-        else {
-            return EVENT_SEATS_FOR_LANDING;
-        }
-        break;
 
     case 2:
-        if (isOnGround) {
-            return simVars.pushbackState < 3 ? EVENT_PUSHBACK_STOP : EVENT_PUSHBACK_START;
+        // Event button 2 pressed
+        switch (phase) {
+            case GROUND:
+                if (completedTakeOff) {
+                    // Landed
+                    if (simVars.asiAirspeed > 0) {
+                        // Taxi in
+                        return EVENT_REMAIN_SEATED;
+                    }
+                    else {
+                        // Arrived at stand
+                        return EVENT_DISEMBARK;
+                    }
+                }
+                else {
+                    return simVars.pushbackState < 3 ? EVENT_PUSHBACK_STOP : EVENT_PUSHBACK_START;
+                }
+            case TAKEOFF:
+                break;
+            case CLIMB:
+                if (simVars.seatBeltsSwitch == 1) {
+                    return EVENT_TURBULENCE;
+                }
+                break;
+            case CRUISE:
+                if (simVars.seatBeltsSwitch == 1) {
+                    return EVENT_TURBULENCE;
+                }
+                else {
+                    return EVENT_REACHED_CRUISE;
+                }
+                break;
+            case DESCENT:
+                if (simVars.seatBeltsSwitch == 1) {
+                    return EVENT_TURBULENCE;
+                }
+                else {
+                    return EVENT_REACHED_TOD;
+                }
+                break;
+            case APPROACH:
+                return EVENT_LANDING_PREPARE_CABIN;
+                break;
+            case GO_AROUND:
+                return EVENT_GO_AROUND;
+                break;
         }
-        break;
     }
 
     return EVENT_NONE;
@@ -631,10 +771,11 @@ void processRequest()
         if (request.writeData.eventId == KEY_CHECK_EVENT) {
             int eventNum = (int)(request.writeData.value);
             EVENT_ID event = getCustomEvent(eventNum);
-            sendto(sockfd, (char*)&event, sizeof(double), 0, (SOCKADDR*)&senderAddr, addrSize);
+            sendto(sockfd, (char*)&event, sizeof(int), 0, (SOCKADDR*)&senderAddr, addrSize);
             if (event == EVENT_PUSHBACK_START || event == EVENT_PUSHBACK_STOP) {
                 // Don't return (need to trigger the pushback)
-                request.writeData.eventId == KEY_TOGGLE_PUSHBACK;
+                request.writeData.eventId = KEY_TOGGLE_PUSHBACK;
+                initiatedPushback = true;
             }
             else {
                 return;
