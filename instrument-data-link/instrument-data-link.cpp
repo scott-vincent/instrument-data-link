@@ -605,8 +605,8 @@ EVENT_ID getCustomEvent(int eventNum)
 
     FLIGHT_PHASE phase = GROUND;
     if (simVars.altAboveGround > 50) {
-        bool isClimbing = simVars.vsiVerticalSpeed > 200;
-        bool isDescending = simVars.vsiVerticalSpeed < -200;
+        bool isClimbing = simVars.vsiVerticalSpeed > 3;
+        bool isDescending = simVars.vsiVerticalSpeed < -3;
 
         if (simVars.altAltitude < 10000) {
             if (!completedTakeOff) {
@@ -666,17 +666,15 @@ EVENT_ID getCustomEvent(int eventNum)
                             return EVENT_BOARDING_COMPLETE;
                     }
                 }
-                break;
+                return EVENT_NONE;
             case TAKEOFF:
-                break;
+                return EVENT_NONE;
             case CLIMB:
                 return EVENT_START_SERVING;
-                break;
             case CRUISE:
                 return EVENT_START_SERVING;
-                break;
             case DESCENT:
-                break;
+                return EVENT_NONE;
             case APPROACH:
                 if (simVars.altAltitude > 5000) {
                     return EVENT_FINAL_DESCENT;
@@ -685,7 +683,7 @@ EVENT_ID getCustomEvent(int eventNum)
                     return EVENT_SEATS_FOR_LANDING;
                 }
             case GO_AROUND:
-                break;
+                return EVENT_NONE;
         }
 
     case 2:
@@ -707,12 +705,14 @@ EVENT_ID getCustomEvent(int eventNum)
                     return simVars.pushbackState < 3 ? EVENT_PUSHBACK_STOP : EVENT_PUSHBACK_START;
                 }
             case TAKEOFF:
-                break;
+                return EVENT_NONE;
             case CLIMB:
                 if (simVars.seatBeltsSwitch == 1) {
                     return EVENT_TURBULENCE;
                 }
-                break;
+                else {
+                    return EVENT_NONE;
+                }
             case CRUISE:
                 if (simVars.seatBeltsSwitch == 1) {
                     return EVENT_TURBULENCE;
@@ -720,7 +720,6 @@ EVENT_ID getCustomEvent(int eventNum)
                 else {
                     return EVENT_REACHED_CRUISE;
                 }
-                break;
             case DESCENT:
                 if (simVars.seatBeltsSwitch == 1) {
                     return EVENT_TURBULENCE;
@@ -728,13 +727,10 @@ EVENT_ID getCustomEvent(int eventNum)
                 else {
                     return EVENT_REACHED_TOD;
                 }
-                break;
             case APPROACH:
                 return EVENT_LANDING_PREPARE_CABIN;
-                break;
             case GO_AROUND:
                 return EVENT_GO_AROUND;
-                break;
         }
     }
 
