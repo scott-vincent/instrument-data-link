@@ -641,7 +641,7 @@ EVENT_ID getCustomEvent(int eventNum)
             case GROUND:
                 if (completedTakeOff) {
                     // Landed
-                    if (simVars.asiAirspeed > 0) {
+                    if (simVars.asiAirspeed > 3) {
                         // Taxi in
                         return EVENT_DOORS_TO_MANUAL;
                     }
