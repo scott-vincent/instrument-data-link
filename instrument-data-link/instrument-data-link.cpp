@@ -633,7 +633,6 @@ EVENT_ID getCustomEvent(int eventNum)
             phase = CRUISE;
         }
     }
-
     switch (eventNum) {
     case 1:
         // Event button 1 pressed
@@ -658,7 +657,7 @@ EVENT_ID getCustomEvent(int eventNum)
                     // Completed pushback
                     return EVENT_SEATS_FOR_TAKEOFF;
                 }
-                else if (simVars.asiAirspeed == 0) {
+                else if (simVars.asiAirspeed < 3) {
                     // Still on stand
                     onStandState++;
                     switch (onStandState) {
@@ -696,7 +695,7 @@ EVENT_ID getCustomEvent(int eventNum)
             case GROUND:
                 if (completedTakeOff) {
                     // Landed
-                    if (simVars.asiAirspeed > 0) {
+                    if (simVars.asiAirspeed > 3) {
                         // Taxi in
                         return EVENT_REMAIN_SEATED;
                     }
