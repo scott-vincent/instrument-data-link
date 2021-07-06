@@ -293,7 +293,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             //else {
             //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
             //}
-            break;
+            //break;
         }
         default:
         {
@@ -640,13 +640,13 @@ EVENT_ID getCustomEvent(int eventNum)
             case GROUND:
                 if (completedTakeOff) {
                     // Landed
-                    if (simVars.asiAirspeed > 3) {
-                        // Taxi in
-                        return EVENT_DOORS_TO_MANUAL;
-                    }
-                    else {
+                    if (simVars.parkingBrakeOn) {
                         // Arrived at stand
                         return EVENT_DOORS_FOR_DISEMBARK;
+                    }
+                    else {
+                        // Taxi in
+                        return EVENT_DOORS_TO_MANUAL;
                     }
                 }
                 else if (simVars.pushbackState < 3) {
@@ -657,7 +657,7 @@ EVENT_ID getCustomEvent(int eventNum)
                     // Completed pushback
                     return EVENT_SEATS_FOR_TAKEOFF;
                 }
-                else if (simVars.asiAirspeed < 3) {
+                else if (simVars.parkingBrakeOn) {
                     // Still on stand
                     onStandState++;
                     switch (onStandState) {
@@ -695,13 +695,13 @@ EVENT_ID getCustomEvent(int eventNum)
             case GROUND:
                 if (completedTakeOff) {
                     // Landed
-                    if (simVars.asiAirspeed > 3) {
-                        // Taxi in
-                        return EVENT_REMAIN_SEATED;
-                    }
-                    else {
+                    if (simVars.parkingBrakeOn) {
                         // Arrived at stand
                         return EVENT_DISEMBARK;
+                    }
+                    else {
+                        // Taxi in
+                        return EVENT_REMAIN_SEATED;
                     }
                 }
                 else {
