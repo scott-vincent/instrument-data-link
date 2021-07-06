@@ -287,13 +287,15 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                     completedTakeOff = true;
                 }
             }
+
             //if (displayDelay > 0) {
             //    displayDelay--;
             //}
             //else {
             //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
             //}
-            //break;
+
+            break;
         }
         default:
         {
