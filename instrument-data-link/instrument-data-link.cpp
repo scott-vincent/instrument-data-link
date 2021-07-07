@@ -682,7 +682,7 @@ EVENT_ID getCustomEvent(int eventNum)
                 return EVENT_NONE;
             case APPROACH:
                 if (simVars.altAltitude > 5000) {
-                    return EVENT_FINAL_DESCENT;
+                    return EVENT_LANDING_PREPARE_CABIN;
                 }
                 else {
                     return EVENT_SEATS_FOR_LANDING;
@@ -733,7 +733,7 @@ EVENT_ID getCustomEvent(int eventNum)
                     return EVENT_REACHED_TOD;
                 }
             case APPROACH:
-                return EVENT_LANDING_PREPARE_CABIN;
+                return EVENT_FINAL_DESCENT;
             case GO_AROUND:
                 return EVENT_GO_AROUND;
         }
