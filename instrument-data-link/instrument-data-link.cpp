@@ -274,16 +274,19 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 memcpy(varsStart, &pObjData->dwData, varsSize);
             }
             if (simVars.altAboveGround < 50) {
-                if (simVars.apuStart > 0) {
+                if (completedTakeOff && simVars.apuStart > 0) {
                     // Reset takeoff
                     completedTakeOff = false;
                 }
             }
             else {
-                // Reset ground state
-                initiatedPushback = false;
-                onStandState = 0;
-                if (simVars.altAltitude > 10000) {
+                if (initiatedPushback) {
+                    // Reset ground state
+                    initiatedPushback = false;
+                    onStandState = 0;
+                }
+
+                if (!completedTakeOff && simVars.altAltitude > 10000) {
                     completedTakeOff = true;
                 }
             }
