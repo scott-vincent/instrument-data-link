@@ -273,13 +273,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             else {
                 memcpy(varsStart, &pObjData->dwData, varsSize);
             }
-            if (simVars.altAboveGround < 50) {
-                if (completedTakeOff && simVars.apuStart > 0) {
-                    // Reset takeoff
-                    completedTakeOff = false;
-                }
-            }
-            else {
+            if (simVars.altAboveGround > 50) {
                 if (initiatedPushback) {
                     // Reset ground state
                     initiatedPushback = false;
@@ -702,6 +696,8 @@ EVENT_ID getCustomEvent(int eventNum)
                     // Landed
                     if (simVars.parkingBrakeOn) {
                         // Arrived at stand
+                        // Reset takeoff
+                        completedTakeOff = false;
                         return EVENT_DISEMBARK;
                     }
                     else {
