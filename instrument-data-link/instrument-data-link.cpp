@@ -74,6 +74,8 @@ const char* JETBRIDGE_ELEC_BAT1 = "L:A32NX_OVHD_ELEC_BAT_10_PB_IS_AUTO, bool";
 const int JETBRIDGE_ELEC_BAT1_LEN = 41;
 const char* JETBRIDGE_ELEC_BAT2 = "L:A32NX_OVHD_ELEC_BAT_11_PB_IS_AUTO, bool";
 const int JETBRIDGE_ELEC_BAT2_LEN = 41;
+const char* JETBRIDGE_PARK_BRAKE_POS = "L:A32NX_PARK_BRAKE_LEVER_POS, bool";
+const int JETBRIDGE_PARK_BRAKE_POS_LEN = 34;
 
 jetbridge::Client* jetbridgeClient = 0;
 #endif
@@ -175,6 +177,9 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_ELEC_BAT2, JETBRIDGE_ELEC_BAT2_LEN) == 0) {
         simVars.elecBat2 = atof(&data[JETBRIDGE_ELEC_BAT2_LEN] + 2);
     }
+    else if (strncmp(&data[1], JETBRIDGE_PARK_BRAKE_POS, JETBRIDGE_PARK_BRAKE_POS_LEN) == 0) {
+        simVars.parkBrakePos = atof(&data[JETBRIDGE_PARK_BRAKE_POS_LEN] + 2);
+    }
 }
 
 bool jetbridgeButtonPress(int eventId, double value)
@@ -213,6 +218,7 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_APU_BLEED);
             readJetbridgeVar(JETBRIDGE_ELEC_BAT1);
             readJetbridgeVar(JETBRIDGE_ELEC_BAT2);
+            readJetbridgeVar(JETBRIDGE_PARK_BRAKE_POS);
         }
 
         Sleep(loopMillis);
