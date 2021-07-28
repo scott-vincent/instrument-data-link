@@ -62,20 +62,17 @@ int vJoyConfiguredButtons;
 #ifdef jetbridgeFallback
 #include "jetbridge\client.h"
 
-const char* JETBRIDGE_APU_MASTER_SW = "L:A32NX_OVHD_APU_MASTER_SW_PB_IS_ON, bool";
-const int JETBRIDGE_APU_MASTER_SW_LEN = 41;
-const char* JETBRIDGE_APU_START = "L:A32NX_OVHD_APU_START_PB_IS_ON, bool";
-const int JETBRIDGE_APU_START_LEN = 37;
-const char* JETBRIDGE_APU_START_AVAIL = "L:A32NX_OVHD_APU_START_PB_IS_AVAILABLE, bool";
-const int JETBRIDGE_APU_START_AVAIL_LEN = 44;
-const char* JETBRIDGE_APU_BLEED = "L:A32NX_OVHD_PNEU_APU_BLEED_PB_IS_ON, bool";
-const int JETBRIDGE_APU_BLEED_LEN = 42;
-const char* JETBRIDGE_ELEC_BAT1 = "L:A32NX_OVHD_ELEC_BAT_1_PB_IS_AUTO, bool";
-const int JETBRIDGE_ELEC_BAT1_LEN = 41;
-const char* JETBRIDGE_ELEC_BAT2 = "L:A32NX_OVHD_ELEC_BAT_2_PB_IS_AUTO, bool";
-const int JETBRIDGE_ELEC_BAT2_LEN = 41;
-const char* JETBRIDGE_PARK_BRAKE_POS = "L:A32NX_PARK_BRAKE_LEVER_POS, bool";
-const int JETBRIDGE_PARK_BRAKE_POS_LEN = 34;
+const char JETBRIDGE_APU_MASTER_SW[] = "L:A32NX_OVHD_APU_MASTER_SW_PB_IS_ON, bool";
+const char JETBRIDGE_APU_START[] = "L:A32NX_OVHD_APU_START_PB_IS_ON, bool";
+const char JETBRIDGE_APU_START_AVAIL[] = "L:A32NX_OVHD_APU_START_PB_IS_AVAILABLE, bool";
+const char JETBRIDGE_APU_BLEED[] = "L:A32NX_OVHD_PNEU_APU_BLEED_PB_IS_ON, bool";
+const char JETBRIDGE_ELEC_BAT1[] = "L:A32NX_OVHD_ELEC_BAT_1_PB_IS_AUTO, bool";
+const char JETBRIDGE_ELEC_BAT2[] = "L:A32NX_OVHD_ELEC_BAT_2_PB_IS_AUTO, bool";
+const char JETBRIDGE_PARK_BRAKE_POS[] = "L:A32NX_PARK_BRAKE_LEVER_POS, bool";
+const char JETBRIDGE_AUTOPILOT[] = "L:A32NX_AUTOPILOT_1_ACTIVE, bool";
+const char JETBRIDGE_AUTOTHRUST[] = "L:A32NX_AUTOTHRUST_STATUS, enum";
+const char JETBRIDGE_LOC_MODE[] = "L:A32NX_FCU_LOC_MODE_ACTIVE, bool";
+const char JETBRIDGE_APPR_MODE[] = "L:A32NX_FCU_APPR_MODE_ACTIVE, bool";
 
 jetbridge::Client* jetbridgeClient = 0;
 #endif
@@ -159,26 +156,38 @@ void writeJetbridgeVar(const char* var, double val)
 
 void updateVarFromJetbridge(const char* data)
 {
-    if (strncmp(&data[1], JETBRIDGE_APU_MASTER_SW, JETBRIDGE_APU_MASTER_SW_LEN) == 0) {
-        simVars.apuMasterSw = atof(&data[JETBRIDGE_APU_MASTER_SW_LEN] + 2);
+    if (strncmp(&data[1], JETBRIDGE_APU_MASTER_SW, sizeof(JETBRIDGE_APU_MASTER_SW) - 1) == 0) {
+        simVars.apuMasterSw = atof(&data[sizeof(JETBRIDGE_APU_MASTER_SW) + 1]);
     }
-    else if (strncmp(&data[1], JETBRIDGE_APU_START, JETBRIDGE_APU_START_LEN) == 0) {
-        simVars.apuStart = atof(&data[JETBRIDGE_APU_START_LEN] + 2);
+    else if (strncmp(&data[1], JETBRIDGE_APU_START, sizeof(JETBRIDGE_APU_START) - 1) == 0) {
+        simVars.apuStart = atof(&data[sizeof(JETBRIDGE_APU_START) + 1]);
     }
-    else if (strncmp(&data[1], JETBRIDGE_APU_START_AVAIL, JETBRIDGE_APU_START_AVAIL_LEN) == 0) {
-        simVars.apuStartAvail = atof(&data[JETBRIDGE_APU_START_AVAIL_LEN] + 2);
+    else if (strncmp(&data[1], JETBRIDGE_APU_START_AVAIL, sizeof(JETBRIDGE_APU_START_AVAIL) - 1) == 0) {
+        simVars.apuStartAvail = atof(&data[sizeof(JETBRIDGE_APU_START_AVAIL) + 1]);
     }
-    else if (strncmp(&data[1], JETBRIDGE_APU_BLEED, JETBRIDGE_APU_BLEED_LEN) == 0) {
-        simVars.apuBleed = atof(&data[JETBRIDGE_APU_BLEED_LEN] + 2);
+    else if (strncmp(&data[1], JETBRIDGE_APU_BLEED, sizeof(JETBRIDGE_APU_BLEED) - 1) == 0) {
+        simVars.apuBleed = atof(&data[sizeof(JETBRIDGE_APU_BLEED) + 1]);
     }
-    else if (strncmp(&data[1], JETBRIDGE_ELEC_BAT1, JETBRIDGE_ELEC_BAT1_LEN) == 0) {
-        simVars.elecBat1 = atof(&data[JETBRIDGE_ELEC_BAT1_LEN] + 2);
+    else if (strncmp(&data[1], JETBRIDGE_ELEC_BAT1, sizeof(JETBRIDGE_ELEC_BAT1) - 1) == 0) {
+        simVars.elecBat1 = atof(&data[sizeof(JETBRIDGE_ELEC_BAT1) + 1]);
     }
-    else if (strncmp(&data[1], JETBRIDGE_ELEC_BAT2, JETBRIDGE_ELEC_BAT2_LEN) == 0) {
-        simVars.elecBat2 = atof(&data[JETBRIDGE_ELEC_BAT2_LEN] + 2);
+    else if (strncmp(&data[1], JETBRIDGE_ELEC_BAT2, sizeof(JETBRIDGE_ELEC_BAT2) - 1) == 0) {
+        simVars.elecBat2 = atof(&data[sizeof(JETBRIDGE_ELEC_BAT2) + 1]);
     }
-    else if (strncmp(&data[1], JETBRIDGE_PARK_BRAKE_POS, JETBRIDGE_PARK_BRAKE_POS_LEN) == 0) {
-        simVars.parkBrakePos = atof(&data[JETBRIDGE_PARK_BRAKE_POS_LEN] + 2);
+    else if (strncmp(&data[1], JETBRIDGE_PARK_BRAKE_POS, sizeof(JETBRIDGE_PARK_BRAKE_POS) - 1) == 0) {
+        simVars.jbParkBrakePos = atof(&data[sizeof(JETBRIDGE_PARK_BRAKE_POS) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT, sizeof(JETBRIDGE_AUTOPILOT) - 1) == 0) {
+        simVars.jbAutopilot = atof(&data[sizeof(JETBRIDGE_AUTOPILOT) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_AUTOTHRUST, sizeof(JETBRIDGE_AUTOTHRUST) - 1) == 0) {
+        simVars.jbAutothrust = atof(&data[sizeof(JETBRIDGE_AUTOTHRUST) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_LOC_MODE, sizeof(JETBRIDGE_LOC_MODE) - 1) == 0) {
+        simVars.jbLocMode = atof(&data[sizeof(JETBRIDGE_LOC_MODE) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_APPR_MODE, sizeof(JETBRIDGE_APPR_MODE) - 1) == 0) {
+        simVars.jbApprMode = atof(&data[sizeof(JETBRIDGE_APPR_MODE) + 1]);
     }
 }
 
@@ -201,6 +210,7 @@ bool jetbridgeButtonPress(int eventId, double value)
         writeJetbridgeVar(JETBRIDGE_ELEC_BAT2, value);
         return true;
     }
+
     return false;
 }
 
@@ -219,6 +229,10 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_ELEC_BAT1);
             readJetbridgeVar(JETBRIDGE_ELEC_BAT2);
             readJetbridgeVar(JETBRIDGE_PARK_BRAKE_POS);
+            readJetbridgeVar(JETBRIDGE_AUTOPILOT);
+            readJetbridgeVar(JETBRIDGE_AUTOTHRUST);
+            readJetbridgeVar(JETBRIDGE_LOC_MODE);
+            readJetbridgeVar(JETBRIDGE_APPR_MODE);
         }
 
         Sleep(loopMillis);
@@ -278,11 +292,15 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             }
             else {
                 memcpy(varsStart, &pObjData->dwData, varsSize);
-                if (simVars.parkBrakePos == 1) {
-                    // If A32NX parking brake on, set real parking brake on
-                    simVars.parkingBrakeOn = 1;
-                }
             }
+
+            // Map A32NX vars to real vars
+            if (simVars.jbParkBrakePos == 1) simVars.parkingBrakeOn = 1;
+            if (simVars.jbAutopilot == 1) simVars.autopilotEngaged = 1;
+            if (simVars.jbAutothrust > 0) simVars.autothrottleActive = 1;
+            if (simVars.jbLocMode == 1) simVars.autopilotApproachHold = 1;
+            if (simVars.jbApprMode == 1) simVars.autopilotGlideslopeHold = 1;
+
             if (simVars.altAboveGround > 50) {
                 if (initiatedPushback) {
                     // Reset ground state
@@ -790,6 +808,15 @@ void processRequest()
             else {
                 return;
             }
+        }
+
+        // A32NX has its own event to set Approach mode but it's a toggle
+        // so only send it if we're not in the requested state.
+        if ((request.writeData.eventId == KEY_AP_APR_HOLD_OFF && simVars.jbApprMode == 1) ||
+            (request.writeData.eventId == KEY_AP_APR_HOLD_ON && simVars.jbApprMode == 0))
+        {
+            request.writeData.eventId = A32NX_FCU_APPR_PUSH;
+            SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
         }
 
         if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
