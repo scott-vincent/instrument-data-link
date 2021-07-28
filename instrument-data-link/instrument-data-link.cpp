@@ -278,6 +278,10 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             }
             else {
                 memcpy(varsStart, &pObjData->dwData, varsSize);
+                if (simVars.parkBrakePos == 1) {
+                    // If A32NX parking brake on, set real parking brake on
+                    simVars.parkingBrakeOn = 1;
+                }
             }
             if (simVars.altAboveGround > 50) {
                 if (initiatedPushback) {
