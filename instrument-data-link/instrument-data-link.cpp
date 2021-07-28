@@ -71,6 +71,8 @@ const char JETBRIDGE_ELEC_BAT2[] = "L:A32NX_OVHD_ELEC_BAT_2_PB_IS_AUTO, bool";
 const char JETBRIDGE_PARK_BRAKE_POS[] = "L:A32NX_PARK_BRAKE_LEVER_POS, bool";
 const char JETBRIDGE_AUTOPILOT[] = "L:A32NX_AUTOPILOT_1_ACTIVE, bool";
 const char JETBRIDGE_AUTOTHRUST[] = "L:A32NX_AUTOTHRUST_STATUS, enum";
+const char JETBRIDGE_AUTOPILOT_HDG[] = "L:A32NX_AUTOPILOT_HEADING_SELECTED, degrees";
+const char JETBRIDGE_AUTOPILOT_VS[] = "L:A32NX_AUTOPILOT_VS_SELECTED, feetperminute";
 const char JETBRIDGE_LOC_MODE[] = "L:A32NX_FCU_LOC_MODE_ACTIVE, bool";
 const char JETBRIDGE_APPR_MODE[] = "L:A32NX_FCU_APPR_MODE_ACTIVE, bool";
 
@@ -139,7 +141,7 @@ enum REQUEST_ID {
 };
 
 #ifdef jetbridgeFallback
-void readJetbridgeVar(const char *var)
+void readJetbridgeVar(const char* var)
 {
     char rpnCode[128];
     sprintf_s(rpnCode, "(%s)", var);
@@ -183,6 +185,12 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_AUTOTHRUST, sizeof(JETBRIDGE_AUTOTHRUST) - 1) == 0) {
         simVars.jbAutothrust = atof(&data[sizeof(JETBRIDGE_AUTOTHRUST) + 1]);
     }
+    else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT_HDG, sizeof(JETBRIDGE_AUTOPILOT_HDG) - 1) == 0) {
+        simVars.jbAutopilotHeading = atof(&data[sizeof(JETBRIDGE_AUTOPILOT_HDG) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT_VS, sizeof(JETBRIDGE_AUTOPILOT_VS) - 1) == 0) {
+        simVars.jbAutopilotVerticalSpeed = atof(&data[sizeof(JETBRIDGE_AUTOPILOT_VS) + 1]);
+    }
     else if (strncmp(&data[1], JETBRIDGE_LOC_MODE, sizeof(JETBRIDGE_LOC_MODE) - 1) == 0) {
         simVars.jbLocMode = atof(&data[sizeof(JETBRIDGE_LOC_MODE) + 1]);
     }
@@ -209,6 +217,18 @@ bool jetbridgeButtonPress(int eventId, double value)
     case KEY_ELEC_BAT2:
         writeJetbridgeVar(JETBRIDGE_ELEC_BAT2, value);
         return true;
+    case KEY_HEADING_BUG_SET:
+        if (strncmp(simVars.aircraft, "FBW", 3) != 0) {
+            return false;
+        }
+        writeJetbridgeVar(JETBRIDGE_AUTOPILOT_HDG, value);
+        return true;
+    case KEY_AP_VS_VAR_SET_ENGLISH:
+        if (strncmp(simVars.aircraft, "FBW", 3) != 0) {
+            return false;
+        }
+        writeJetbridgeVar(JETBRIDGE_AUTOPILOT_VS, value);
+        return true;
     }
 
     return false;
@@ -231,6 +251,8 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_PARK_BRAKE_POS);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT);
             readJetbridgeVar(JETBRIDGE_AUTOTHRUST);
+            readJetbridgeVar(JETBRIDGE_AUTOPILOT_HDG);
+            readJetbridgeVar(JETBRIDGE_AUTOPILOT_VS);
             readJetbridgeVar(JETBRIDGE_LOC_MODE);
             readJetbridgeVar(JETBRIDGE_APPR_MODE);
         }
@@ -294,12 +316,21 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 memcpy(varsStart, &pObjData->dwData, varsSize);
             }
 
-            // Map A32NX vars to real vars
-            if (simVars.jbParkBrakePos == 1) simVars.parkingBrakeOn = 1;
-            if (simVars.jbAutopilot == 1) simVars.autopilotEngaged = 1;
-            if (simVars.jbAutothrust > 0) simVars.autothrottleActive = 1;
-            if (simVars.jbLocMode == 1) simVars.autopilotApproachHold = 1;
-            if (simVars.jbApprMode == 1) simVars.autopilotGlideslopeHold = 1;
+            if (strncmp(simVars.aircraft, "FBW", 3) == 0) {
+                // Map A32NX vars to real vars
+                simVars.parkingBrakeOn = simVars.jbParkBrakePos;
+                simVars.autopilotEngaged = simVars.jbAutopilot;
+                if (simVars.jbAutothrust == 0) {
+                    simVars.autothrottleActive = 0;
+                }
+                else {
+                    simVars.autothrottleActive = 1;
+                }
+                simVars.autopilotApproachHold = simVars.jbLocMode;
+                simVars.autopilotGlideslopeHold = simVars.jbApprMode;
+                simVars.autopilotHeading = simVars.jbAutopilotHeading;
+                simVars.autopilotVerticalSpeed = simVars.jbAutopilotVerticalSpeed;
+            }
 
             if (simVars.altAboveGround > 50) {
                 if (initiatedPushback) {
@@ -808,15 +839,6 @@ void processRequest()
             else {
                 return;
             }
-        }
-
-        // A32NX has its own event to set Approach mode but it's a toggle
-        // so only send it if we're not in the requested state.
-        if ((request.writeData.eventId == KEY_AP_APR_HOLD_OFF && simVars.jbApprMode == 1) ||
-            (request.writeData.eventId == KEY_AP_APR_HOLD_ON && simVars.jbApprMode == 0))
-        {
-            request.writeData.eventId = A32NX_FCU_APPR_PUSH;
-            SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
         }
 
         if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
