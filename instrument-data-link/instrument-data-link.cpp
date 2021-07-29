@@ -73,6 +73,10 @@ const char JETBRIDGE_AUTOPILOT[] = "L:A32NX_AUTOPILOT_1_ACTIVE, bool";
 const char JETBRIDGE_AUTOTHRUST[] = "L:A32NX_AUTOTHRUST_STATUS, enum";
 const char JETBRIDGE_AUTOPILOT_HDG[] = "L:A32NX_AUTOPILOT_HEADING_SELECTED, degrees";
 const char JETBRIDGE_AUTOPILOT_VS[] = "L:A32NX_AUTOPILOT_VS_SELECTED, feetperminute";
+const char JETBRIDGE_MANAGED_SPEED[] = "L:A32NX_FCU_SPD_MANAGED_DOT, bool";
+const char JETBRIDGE_MANAGED_HEADING[] = "L:A32NX_FCU_HDG_MANAGED_DOT, bool";
+const char JETBRIDGE_MANAGED_ALTITUDE[] = "L:A32NX_FCU_ALT_MANAGED, bool";
+const char JETBRIDGE_VERTICAL_MODE[] = "L:A32NX_FMA_VERTICAL_MODE, enum";
 const char JETBRIDGE_LOC_MODE[] = "L:A32NX_FCU_LOC_MODE_ACTIVE, bool";
 const char JETBRIDGE_APPR_MODE[] = "L:A32NX_FCU_APPR_MODE_ACTIVE, bool";
 
@@ -191,6 +195,18 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT_VS, sizeof(JETBRIDGE_AUTOPILOT_VS) - 1) == 0) {
         simVars.jbAutopilotVerticalSpeed = atof(&data[sizeof(JETBRIDGE_AUTOPILOT_VS) + 1]);
     }
+    else if (strncmp(&data[1], JETBRIDGE_MANAGED_SPEED, sizeof(JETBRIDGE_MANAGED_SPEED) - 1) == 0) {
+        simVars.jbManagedSpeed = atof(&data[sizeof(JETBRIDGE_MANAGED_SPEED) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_MANAGED_HEADING, sizeof(JETBRIDGE_MANAGED_HEADING) - 1) == 0) {
+        simVars.jbManagedHeading = atof(&data[sizeof(JETBRIDGE_MANAGED_HEADING) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_MANAGED_ALTITUDE, sizeof(JETBRIDGE_MANAGED_ALTITUDE) - 1) == 0) {
+        simVars.jbManagedAltitude = atof(&data[sizeof(JETBRIDGE_MANAGED_ALTITUDE) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_VERTICAL_MODE, sizeof(JETBRIDGE_VERTICAL_MODE) - 1) == 0) {
+        simVars.jbVerticalMode = atof(&data[sizeof(JETBRIDGE_VERTICAL_MODE) + 1]);
+    }
     else if (strncmp(&data[1], JETBRIDGE_LOC_MODE, sizeof(JETBRIDGE_LOC_MODE) - 1) == 0) {
         simVars.jbLocMode = atof(&data[sizeof(JETBRIDGE_LOC_MODE) + 1]);
     }
@@ -253,6 +269,10 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_AUTOTHRUST);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_HDG);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_VS);
+            readJetbridgeVar(JETBRIDGE_MANAGED_SPEED);
+            readJetbridgeVar(JETBRIDGE_MANAGED_HEADING);
+            readJetbridgeVar(JETBRIDGE_MANAGED_ALTITUDE);
+            readJetbridgeVar(JETBRIDGE_VERTICAL_MODE);
             readJetbridgeVar(JETBRIDGE_LOC_MODE);
             readJetbridgeVar(JETBRIDGE_APPR_MODE);
         }
@@ -326,10 +346,16 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 else {
                     simVars.autothrottleActive = 1;
                 }
-                simVars.autopilotApproachHold = simVars.jbLocMode;
-                simVars.autopilotGlideslopeHold = simVars.jbApprMode;
                 simVars.autopilotHeading = simVars.jbAutopilotHeading;
                 simVars.autopilotVerticalSpeed = simVars.jbAutopilotVerticalSpeed;
+                if (simVars.jbVerticalMode == 14) {
+                    simVars.autopilotVerticalHold = 1;
+                }
+                else {
+                    simVars.autopilotVerticalHold = 0;
+                }
+                simVars.autopilotApproachHold = simVars.jbLocMode;
+                simVars.autopilotGlideslopeHold = simVars.jbApprMode;
             }
 
             if (simVars.altAboveGround > 50) {
