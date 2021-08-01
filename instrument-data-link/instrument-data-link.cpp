@@ -76,10 +76,12 @@ const char JETBRIDGE_AUTOPILOT_VS[] = "L:A32NX_AUTOPILOT_VS_SELECTED, feetpermin
 const char JETBRIDGE_MANAGED_SPEED[] = "L:A32NX_FCU_SPD_MANAGED_DOT, bool";
 const char JETBRIDGE_MANAGED_HEADING[] = "L:A32NX_FCU_HDG_MANAGED_DOT, bool";
 const char JETBRIDGE_MANAGED_ALTITUDE[] = "L:A32NX_FCU_ALT_MANAGED, bool";
+const char JETBRIDGE_LATERAL_MODE[] = "L:A32NX_FMA_LATERAL_MODE, enum";
 const char JETBRIDGE_VERTICAL_MODE[] = "L:A32NX_FMA_VERTICAL_MODE, enum";
 const char JETBRIDGE_LOC_MODE[] = "L:A32NX_FCU_LOC_MODE_ACTIVE, bool";
 const char JETBRIDGE_APPR_MODE[] = "L:A32NX_FCU_APPR_MODE_ACTIVE, bool";
 const char JETBRIDGE_AUTOBRAKE[] = "L:A32NX_AUTOBRAKES_ARMED_MODE, bool";
+const char JETBRIDGE_BRAKEPEDAL[] = "L:A32NX_LEFT_BRAKE_PEDAL_INPUT, percent";
 
 jetbridge::Client* jetbridgeClient = 0;
 #endif
@@ -98,6 +100,7 @@ bool quit = false;
 bool initiatedPushback = false;
 bool completedTakeOff = false;
 int onStandState = 0;
+double prevBrakePedal = 0;
 HANDLE hSimConnect = NULL;
 extern const char* versionString;
 extern const char* SimVarDefs[][2];
@@ -205,6 +208,9 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_MANAGED_ALTITUDE, sizeof(JETBRIDGE_MANAGED_ALTITUDE) - 1) == 0) {
         simVars.jbManagedAltitude = atof(&data[sizeof(JETBRIDGE_MANAGED_ALTITUDE) + 1]);
     }
+    else if (strncmp(&data[1], JETBRIDGE_LATERAL_MODE, sizeof(JETBRIDGE_LATERAL_MODE) - 1) == 0) {
+        simVars.jbLateralMode = atof(&data[sizeof(JETBRIDGE_LATERAL_MODE) + 1]);
+    }
     else if (strncmp(&data[1], JETBRIDGE_VERTICAL_MODE, sizeof(JETBRIDGE_VERTICAL_MODE) - 1) == 0) {
         simVars.jbVerticalMode = atof(&data[sizeof(JETBRIDGE_VERTICAL_MODE) + 1]);
     }
@@ -216,6 +222,9 @@ void updateVarFromJetbridge(const char* data)
     }
     else if (strncmp(&data[1], JETBRIDGE_AUTOBRAKE, sizeof(JETBRIDGE_AUTOBRAKE) - 1) == 0) {
         simVars.jbAutobrake = atof(&data[sizeof(JETBRIDGE_AUTOBRAKE) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_BRAKEPEDAL, sizeof(JETBRIDGE_BRAKEPEDAL) - 1) == 0) {
+        simVars.jbBrakePedal = atof(&data[sizeof(JETBRIDGE_BRAKEPEDAL) + 1]);
     }
 }
 
@@ -237,17 +246,8 @@ bool jetbridgeButtonPress(int eventId, double value)
     case KEY_ELEC_BAT2:
         writeJetbridgeVar(JETBRIDGE_ELEC_BAT2, value);
         return true;
-    case KEY_HEADING_BUG_SET:
-        if (strncmp(simVars.aircraft, "FBW", 3) != 0) {
-            return false;
-        }
-        writeJetbridgeVar(JETBRIDGE_AUTOPILOT_HDG, value);
-        return true;
-    case KEY_AP_VS_VAR_SET_ENGLISH:
-        if (strncmp(simVars.aircraft, "FBW", 3) != 0) {
-            return false;
-        }
-        writeJetbridgeVar(JETBRIDGE_AUTOPILOT_VS, value);
+    case KEY_AUTOBRAKE:
+        writeJetbridgeVar(JETBRIDGE_AUTOBRAKE, value);
         return true;
     }
 
@@ -261,7 +261,7 @@ void pollJetbridge()
 
     while (!quit)
     {
-        if (simVars.connected) {
+        if (simVars.connected && strncmp(simVars.aircraft, "FBW", 3) == 0) {
             readJetbridgeVar(JETBRIDGE_APU_MASTER_SW);
             readJetbridgeVar(JETBRIDGE_APU_START);
             readJetbridgeVar(JETBRIDGE_APU_START_AVAIL);
@@ -276,10 +276,12 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_MANAGED_SPEED);
             readJetbridgeVar(JETBRIDGE_MANAGED_HEADING);
             readJetbridgeVar(JETBRIDGE_MANAGED_ALTITUDE);
+            readJetbridgeVar(JETBRIDGE_LATERAL_MODE);
             readJetbridgeVar(JETBRIDGE_VERTICAL_MODE);
             readJetbridgeVar(JETBRIDGE_LOC_MODE);
             readJetbridgeVar(JETBRIDGE_APPR_MODE);
             readJetbridgeVar(JETBRIDGE_AUTOBRAKE);
+            readJetbridgeVar(JETBRIDGE_BRAKEPEDAL);
         }
 
         Sleep(loopMillis);
@@ -374,6 +376,9 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 if (!completedTakeOff && simVars.altAltitude > 10000) {
                     completedTakeOff = true;
                 }
+            }
+            else if (completedTakeOff && !((int)simVars.lightStates & 0x1)) {
+                completedTakeOff = false;
             }
 
             //if (displayDelay > 0) {
