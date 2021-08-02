@@ -386,13 +386,12 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
-            if (displayDelay > 0) {
-                displayDelay--;
-            }
-            else {
-                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-                printf("Autothrust mode: %f\n", simVars.jbAutothrustMode);
-            }
+            //if (displayDelay > 0) {
+            //    displayDelay--;
+            //}
+            //else {
+            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //}
 
             break;
         }
