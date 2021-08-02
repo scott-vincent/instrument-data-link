@@ -80,6 +80,7 @@ const char JETBRIDGE_LATERAL_MODE[] = "L:A32NX_FMA_LATERAL_MODE, enum";
 const char JETBRIDGE_VERTICAL_MODE[] = "L:A32NX_FMA_VERTICAL_MODE, enum";
 const char JETBRIDGE_LOC_MODE[] = "L:A32NX_FCU_LOC_MODE_ACTIVE, bool";
 const char JETBRIDGE_APPR_MODE[] = "L:A32NX_FCU_APPR_MODE_ACTIVE, bool";
+const char JETBRIDGE_AUTOTHRUST_MODE[] = "L:A32NX_AUTOTHRUST_MODE, enum";
 const char JETBRIDGE_AUTOBRAKE[] = "L:A32NX_AUTOBRAKES_ARMED_MODE, bool";
 const char JETBRIDGE_BRAKEPEDAL[] = "L:A32NX_LEFT_BRAKE_PEDAL_INPUT, percent";
 
@@ -220,6 +221,9 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_APPR_MODE, sizeof(JETBRIDGE_APPR_MODE) - 1) == 0) {
         simVars.jbApprMode = atof(&data[sizeof(JETBRIDGE_APPR_MODE) + 1]);
     }
+    else if (strncmp(&data[1], JETBRIDGE_AUTOTHRUST_MODE, sizeof(JETBRIDGE_AUTOTHRUST_MODE) - 1) == 0) {
+        simVars.jbAutothrustMode = atof(&data[sizeof(JETBRIDGE_AUTOTHRUST_MODE) + 1]);
+    }
     else if (strncmp(&data[1], JETBRIDGE_AUTOBRAKE, sizeof(JETBRIDGE_AUTOBRAKE) - 1) == 0) {
         simVars.jbAutobrake = atof(&data[sizeof(JETBRIDGE_AUTOBRAKE) + 1]);
     }
@@ -280,6 +284,7 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_VERTICAL_MODE);
             readJetbridgeVar(JETBRIDGE_LOC_MODE);
             readJetbridgeVar(JETBRIDGE_APPR_MODE);
+            readJetbridgeVar(JETBRIDGE_AUTOTHRUST_MODE);
             readJetbridgeVar(JETBRIDGE_AUTOBRAKE);
             readJetbridgeVar(JETBRIDGE_BRAKEPEDAL);
         }
@@ -381,12 +386,13 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
-            //if (displayDelay > 0) {
-            //    displayDelay--;
-            //}
-            //else {
-            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-            //}
+            if (displayDelay > 0) {
+                displayDelay--;
+            }
+            else {
+                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+                printf("Autothrust mode: %f\n", simVars.jbAutothrustMode);
+            }
 
             break;
         }
