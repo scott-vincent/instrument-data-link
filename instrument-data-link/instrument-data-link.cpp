@@ -382,7 +382,9 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                     completedTakeOff = true;
                 }
             }
-            else if (completedTakeOff && !((int)simVars.lightStates & 0x1)) {
+            else if (completedTakeOff && (simVars.elecBat1 == 0 || simVars.elecBat2 == 0)) {
+                printf("Reset flight (Battery off)\n");
+                fflush(stdout);
                 completedTakeOff = false;
             }
 
@@ -797,7 +799,8 @@ EVENT_ID getCustomEvent(int eventNum)
                     // Landed
                     if (simVars.parkingBrakeOn) {
                         // Arrived at stand
-                        // Reset takeoff
+                        printf("Reset flight (Captain goodbye)\n");
+                        fflush(stdout);
                         completedTakeOff = false;
                         return EVENT_DISEMBARK;
                     }
