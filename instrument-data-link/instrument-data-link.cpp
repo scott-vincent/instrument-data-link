@@ -83,6 +83,8 @@ const char JETBRIDGE_APPR_MODE[] = "L:A32NX_FCU_APPR_MODE_ACTIVE, bool";
 const char JETBRIDGE_AUTOTHRUST_MODE[] = "L:A32NX_AUTOTHRUST_MODE, enum";
 const char JETBRIDGE_AUTOBRAKE[] = "L:A32NX_AUTOBRAKES_ARMED_MODE, bool";
 const char JETBRIDGE_BRAKEPEDAL[] = "L:A32NX_LEFT_BRAKE_PEDAL_INPUT, percent";
+const char JETBRIDGE_ENGINE_EGT[] = "L:A32NX_ENGINE_EGT:1, number";
+const char JETBRIDGE_ENGINE_FUEL_FLOW[] = "L:A32NX_ENGINE_FF:1, number";
 
 jetbridge::Client* jetbridgeClient = 0;
 #endif
@@ -230,6 +232,12 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_BRAKEPEDAL, sizeof(JETBRIDGE_BRAKEPEDAL) - 1) == 0) {
         simVars.jbBrakePedal = atof(&data[sizeof(JETBRIDGE_BRAKEPEDAL) + 1]);
     }
+    else if (strncmp(&data[1], JETBRIDGE_ENGINE_EGT, sizeof(JETBRIDGE_ENGINE_EGT) - 1) == 0) {
+        simVars.jbEngineEgt = atof(&data[sizeof(JETBRIDGE_ENGINE_EGT) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_ENGINE_FUEL_FLOW, sizeof(JETBRIDGE_ENGINE_FUEL_FLOW) - 1) == 0) {
+        simVars.jbEngineFuelFlow = atof(&data[sizeof(JETBRIDGE_ENGINE_FUEL_FLOW) + 1]);
+    }
 }
 
 bool jetbridgeButtonPress(int eventId, double value)
@@ -287,6 +295,8 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_AUTOTHRUST_MODE);
             readJetbridgeVar(JETBRIDGE_AUTOBRAKE);
             readJetbridgeVar(JETBRIDGE_BRAKEPEDAL);
+            readJetbridgeVar(JETBRIDGE_ENGINE_EGT);
+            readJetbridgeVar(JETBRIDGE_ENGINE_FUEL_FLOW);
         }
 
         Sleep(loopMillis);
@@ -369,6 +379,8 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.autopilotApproachHold = simVars.jbLocMode;
                 simVars.autopilotGlideslopeHold = simVars.jbApprMode;
                 simVars.tfAutoBrake = simVars.jbAutobrake + 1;
+                simVars.exhaustGasTemp = simVars.jbEngineEgt;
+                simVars.engineFuelFlow = simVars.jbEngineFuelFlow;
             }
 
             if (simVars.altAboveGround > 50) {
@@ -388,12 +400,13 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
-            //if (displayDelay > 0) {
-            //    displayDelay--;
-            //}
-            //else {
-            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-            //}
+            if (displayDelay > 0) {
+                displayDelay--;
+            }
+            else {
+                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+                printf("EGT: %f   Fuel flow: %f\n", simVars.exhaustGasTemp, simVars.engineFuelFlow);
+            }
 
             break;
         }
