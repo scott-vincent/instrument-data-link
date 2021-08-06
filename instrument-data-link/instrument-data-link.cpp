@@ -400,13 +400,12 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
-            if (displayDelay > 0) {
-                displayDelay--;
-            }
-            else {
-                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-                printf("EGT: %f   Fuel flow: %f\n", simVars.exhaustGasTemp, simVars.engineFuelFlow);
-            }
+            //if (displayDelay > 0) {
+            //    displayDelay--;
+            //}
+            //else {
+            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //}
 
             break;
         }
