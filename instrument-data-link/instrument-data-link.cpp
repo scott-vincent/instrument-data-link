@@ -269,11 +269,12 @@ bool jetbridgeButtonPress(int eventId, double value)
 void pollJetbridge()
 {
     // Use low frequency for jetbridge as vars not critical
-    int loopMillis = 500;
+    int loopMillis = 100;
 
     while (!quit)
     {
         if (simVars.connected && strncmp(simVars.aircraft, "FBW", 3) == 0) {
+            // Lower frequency vars (not critical)
             readJetbridgeVar(JETBRIDGE_APU_MASTER_SW);
             readJetbridgeVar(JETBRIDGE_APU_START);
             readJetbridgeVar(JETBRIDGE_APU_START_AVAIL);
@@ -283,8 +284,6 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_PARK_BRAKE_POS);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT);
             readJetbridgeVar(JETBRIDGE_AUTOTHRUST);
-            readJetbridgeVar(JETBRIDGE_AUTOPILOT_HDG);
-            readJetbridgeVar(JETBRIDGE_AUTOPILOT_VS);
             readJetbridgeVar(JETBRIDGE_MANAGED_SPEED);
             readJetbridgeVar(JETBRIDGE_MANAGED_HEADING);
             readJetbridgeVar(JETBRIDGE_MANAGED_ALTITUDE);
@@ -295,11 +294,19 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_AUTOTHRUST_MODE);
             readJetbridgeVar(JETBRIDGE_AUTOBRAKE);
             readJetbridgeVar(JETBRIDGE_BRAKEPEDAL);
-            readJetbridgeVar(JETBRIDGE_ENGINE_EGT);
-            readJetbridgeVar(JETBRIDGE_ENGINE_FUEL_FLOW);
-        }
 
-        Sleep(loopMillis);
+            for (int loop = 0; loop < 5; loop++) {
+                // Higher frequency vars
+                readJetbridgeVar(JETBRIDGE_AUTOPILOT_HDG);
+                readJetbridgeVar(JETBRIDGE_AUTOPILOT_VS);
+                readJetbridgeVar(JETBRIDGE_ENGINE_EGT);
+                readJetbridgeVar(JETBRIDGE_ENGINE_FUEL_FLOW);
+                Sleep(loopMillis);
+            }
+        }
+        else {
+            Sleep(500);
+        }
     }
 }
 #endif
