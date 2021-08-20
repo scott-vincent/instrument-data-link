@@ -388,6 +388,14 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.tfAutoBrake = simVars.jbAutobrake + 1;
                 simVars.exhaustGasTemp = simVars.jbEngineEgt;
                 simVars.engineFuelFlow = simVars.jbEngineFuelFlow;
+
+                // Fix A32NX flaps bug (out by 1)
+                if (simVars.tfFlapsCount == 5) {
+                    simVars.tfFlapsCount = 4;
+                    if (simVars.tfFlapsIndex > 0) {
+                        simVars.tfFlapsIndex--;
+                    }
+                }
             }
 
             if (simVars.altAboveGround > 50) {
