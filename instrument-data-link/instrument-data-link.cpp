@@ -103,7 +103,6 @@ bool quit = false;
 bool initiatedPushback = false;
 bool completedTakeOff = false;
 int onStandState = 0;
-double prevBrakePedal = 0;
 HANDLE hSimConnect = NULL;
 extern const char* versionString;
 extern const char* SimVarDefs[][2];
@@ -368,6 +367,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             if (strncmp(simVars.aircraft, "FBW", 3) == 0) {
                 // Map A32NX vars to real vars
                 simVars.parkingBrakeOn = simVars.jbParkBrakePos;
+                simVars.brakePedal = simVars.jbBrakePedal;
                 simVars.autopilotEngaged = simVars.jbAutopilot;
                 if (simVars.jbAutothrust == 0) {
                     simVars.autothrottleActive = 0;
@@ -415,12 +415,13 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
-            //if (displayDelay > 0) {
-            //    displayDelay--;
-            //}
-            //else {
-            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-            //}
+            if (displayDelay > 0) {
+                displayDelay--;
+            }
+            else {
+                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+                printf("Brake Pedal: %f\n", simVars.brakePedal);
+            }
 
             break;
         }
