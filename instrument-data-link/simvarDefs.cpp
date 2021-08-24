@@ -104,6 +104,7 @@ const char* SimVarDefs[][2] = {
     { "Absolute Time", "seconds" },
     { "Ambient Temperature", "celsius" },
     { "Electrical Battery Load", "amperes" },
+    { "Electrical Master Battery", "bool" },
     { "General Eng Rpm:1", "rpm" },
     { "Eng Rpm Animation Percent:1", "percent" },
     { "General Eng Elapsed Time:1", "hours" },

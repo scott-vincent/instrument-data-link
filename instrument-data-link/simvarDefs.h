@@ -108,6 +108,7 @@ struct SimVars
     double dcFlightSeconds = 0;
     double dcTempC = 26.2;
     double batteryLoad = 0;
+    double masterBattery = 0;
     double rpmEngine = 0;
     double rpmPercent = 0;
     double rpmElapsedTime = 0;

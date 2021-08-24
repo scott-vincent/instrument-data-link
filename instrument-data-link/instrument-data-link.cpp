@@ -397,6 +397,13 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                     }
                 }
             }
+            else if (strncmp(simVars.aircraft, "Boeing", 6) == 0) {
+                // B747 Bug - Fix master battery
+                if (simVars.batteryLoad > 1.2) {
+                    simVars.elecBat1 = 1;
+                    simVars.elecBat2 = 1;
+                }
+            }
 
             if (simVars.altAboveGround > 50) {
                 if (initiatedPushback) {
