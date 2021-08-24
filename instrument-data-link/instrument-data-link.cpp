@@ -415,13 +415,12 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
-            if (displayDelay > 0) {
-                displayDelay--;
-            }
-            else {
-                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-                printf("Brake Pedal: %f\n", simVars.brakePedal);
-            }
+            //if (displayDelay > 0) {
+            //    displayDelay--;
+            //}
+            //else {
+            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //}
 
             break;
         }
