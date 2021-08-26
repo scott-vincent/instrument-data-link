@@ -59,6 +59,7 @@ struct SimVars
     double nav2Standby = 113.90;
     double adfFreq = 394;
     double adfStandby = 368;
+    double pilotTransmitter = 0;
     double seatBeltsSwitch = 0;
     double transponderState = 0;
     double transponderCode = 4608;
@@ -108,7 +109,6 @@ struct SimVars
     double dcFlightSeconds = 0;
     double dcTempC = 26.2;
     double batteryLoad = 0;
-    double masterBattery = 0;
     double rpmEngine = 0;
     double rpmPercent = 0;
     double rpmElapsedTime = 0;
