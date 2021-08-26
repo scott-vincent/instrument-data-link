@@ -125,6 +125,7 @@ char* prevInstrumentsData = NULL;
 char* prevAutopilotData = NULL;
 char* prevRadioData = NULL;
 char* prevLightsData = NULL;
+bool cancellingPushback = false;
 
 int active = -1;
 int bytes;
@@ -400,8 +401,38 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             else if (strncmp(simVars.aircraft, "Boeing", 6) == 0) {
                 // B747 Bug - Fix master battery
                 if (simVars.batteryLoad > 1.2) {
-                    simVars.elecBat1 = 1;
-                    simVars.elecBat2 = 1;
+                    if (simVars.elecBat1 == 0) {
+                        simVars.elecBat1 = 1;
+                        simVars.elecBat2 = 1;
+                        printf("Batteries on, load: %f\n", simVars.batteryLoad);
+                        fflush(stdout);
+                    }
+                }
+                else if (simVars.batteryLoad > 0) {
+                    // Ignore fake load 0.0 setting
+                    if (simVars.elecBat1 == 1) {
+                        simVars.elecBat1 = 0;
+                        simVars.elecBat2 = 0;
+                        printf("Batteries off, load: %f\n", simVars.batteryLoad);
+                        fflush(stdout);
+                    }
+                }
+
+                // B747 Bug - Cancel fake pushback
+                if (cancellingPushback) {
+                    if (simVars.pushbackState == 3) {
+                        cancellingPushback = false;
+                    }
+                    else {
+                        simVars.pushbackState = 3;
+                    }
+                }
+                else if (!initiatedPushback && simVars.pushbackState != 3) {
+                    SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                    simVars.pushbackState = 3;
+                    cancellingPushback = true;
+                    printf("Cancel fake pushback\n");
+                    fflush(stdout);
                 }
             }
 
