@@ -49,7 +49,7 @@ bool vJoyInitialised = false;
 int vJoyConfiguredButtons;
 #endif
 
-// SimConnect doesn't currently support readuing local (lvar)
+// SimConnect doesn't currently support reading local (lvar)
 // variables (params for 3rd party aircraft) but Jetbridge
 // allows us to do this.
 // To use jetbridge you must copy the Redist\a32nx-jetbridge
@@ -101,6 +101,7 @@ enum FLIGHT_PHASE {
 
 bool quit = false;
 bool initiatedPushback = false;
+bool stoppedPushback = false;
 bool completedTakeOff = false;
 int onStandState = 0;
 HANDLE hSimConnect = NULL;
@@ -125,7 +126,7 @@ char* prevInstrumentsData = NULL;
 char* prevAutopilotData = NULL;
 char* prevRadioData = NULL;
 char* prevLightsData = NULL;
-bool cancellingPushback = false;
+time_t lastPushbackAdjust = 0;
 
 int active = -1;
 int bytes;
@@ -417,24 +418,32 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                         fflush(stdout);
                     }
                 }
-
-                // B747 Bug - Cancel fake pushback
-                if (cancellingPushback) {
-                    if (simVars.pushbackState == 3) {
-                        cancellingPushback = false;
-                    }
-                    else {
-                        simVars.pushbackState = 3;
-                    }
-                }
-                else if (!initiatedPushback && simVars.pushbackState != 3) {
-                    SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
-                    simVars.pushbackState = 3;
-                    cancellingPushback = true;
-                    printf("Cancel fake pushback\n");
-                    fflush(stdout);
-                }
             }
+
+            // Following bug was caused by the "Manage Radio Comms" setting which decided
+            // to enable itself. When enabled, pushback starts automatically as soon as APU
+            // goes to Avail state !!
+            // 
+            // Fix fake pushbacks (No event but pushback state changes)
+            //if (lastPushbackAdjust != 0) {
+            //    time_t now;
+            //    time(&now);
+            //    if (now - lastPushbackAdjust > 2) {
+            //        lastPushbackAdjust = 0;
+            //    }
+            //}
+            //else if (!initiatedPushback && simVars.pushbackState != 3) {
+            //    time(&lastPushbackAdjust);
+            //    SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+            //    printf("Cancel fake pushback start\n");
+            //    fflush(stdout);
+            //}
+            //else if (initiatedPushback && !stoppedPushback && simVars.pushbackState == 3) {
+            //    time(&lastPushbackAdjust);
+            //    SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+            //    printf("Cancel fake pushback stop\n");
+            //    fflush(stdout);
+            //}
 
             if (simVars.altAboveGround > 50) {
                 if (initiatedPushback) {
@@ -944,7 +953,14 @@ void processRequest()
             if (event == EVENT_PUSHBACK_START || event == EVENT_PUSHBACK_STOP) {
                 // Don't return (need to trigger the pushback)
                 request.writeData.eventId = KEY_TOGGLE_PUSHBACK;
-                initiatedPushback = true;
+                if (event == EVENT_PUSHBACK_START) {
+                    initiatedPushback = true;
+                    stoppedPushback = false;
+                }
+                else {
+                    stoppedPushback = true;
+                }
+                time(&lastPushbackAdjust);
             }
             else {
                 return;
