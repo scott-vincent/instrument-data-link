@@ -368,7 +368,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
 
             if (strncmp(simVars.aircraft, "Airbus", 6) == 0) {
                 // Some liveries don't have FBW prefix
-                strncpy(simVars.aircraft, "FBW", 3);
+                strcpy(simVars.aircraft, "FBW Airbus A320 Neo");
             }
 
             if (strncmp(simVars.aircraft, "FBW", 3) == 0) {
