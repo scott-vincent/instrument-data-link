@@ -366,6 +366,11 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 memcpy(varsStart, &pObjData->dwData, varsSize);
             }
 
+            if (strncmp(simVars.aircraft, "Airbus", 6) == 0) {
+                // Some liveries don't have FBW prefix
+                strncpy(simVars.aircraft, "FBW", 3);
+            }
+
             if (strncmp(simVars.aircraft, "FBW", 3) == 0) {
                 // Map A32NX vars to real vars
                 simVars.parkingBrakeOn = simVars.jbParkBrakePos;
@@ -419,31 +424,6 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                     }
                 }
             }
-
-            // Following bug was caused by the "Manage Radio Comms" setting which decided
-            // to enable itself. When enabled, pushback starts automatically as soon as APU
-            // goes to Avail state !!
-            // 
-            // Fix fake pushbacks (No event but pushback state changes)
-            //if (lastPushbackAdjust != 0) {
-            //    time_t now;
-            //    time(&now);
-            //    if (now - lastPushbackAdjust > 2) {
-            //        lastPushbackAdjust = 0;
-            //    }
-            //}
-            //else if (!initiatedPushback && simVars.pushbackState != 3) {
-            //    time(&lastPushbackAdjust);
-            //    SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
-            //    printf("Cancel fake pushback start\n");
-            //    fflush(stdout);
-            //}
-            //else if (initiatedPushback && !stoppedPushback && simVars.pushbackState == 3) {
-            //    time(&lastPushbackAdjust);
-            //    SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
-            //    printf("Cancel fake pushback stop\n");
-            //    fflush(stdout);
-            //}
 
             if (simVars.altAboveGround > 50) {
                 if (initiatedPushback) {
