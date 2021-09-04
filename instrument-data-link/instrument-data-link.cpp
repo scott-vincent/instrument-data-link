@@ -104,6 +104,8 @@ bool initiatedPushback = false;
 bool stoppedPushback = false;
 bool completedTakeOff = false;
 int onStandState = 0;
+bool flapsBug = true;
+int prevFlapsIndex = -1;
 HANDLE hSimConnect = NULL;
 extern const char* versionString;
 extern const char* SimVarDefs[][2];
@@ -399,10 +401,20 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 // Fix A32NX flaps bug (out by 1)
                 if (simVars.tfFlapsCount == 5) {
                     simVars.tfFlapsCount = 4;
-                    if (simVars.tfFlapsIndex > 0) {
-                        simVars.tfFlapsIndex--;
-                    }
                 }
+                if (simVars.tfFlapsIndex == 1) {
+                    flapsBug = false;
+                }
+                else if (simVars.tfFlapsIndex == 5
+                    || (simVars.tfFlapsIndex == 0 && prevFlapsIndex == 2)
+                    || (simVars.tfFlapsIndex == 2 && prevFlapsIndex == 0))
+                {
+                    flapsBug = true;
+                }
+                if (flapsBug && simVars.tfFlapsIndex > 1) {
+                    simVars.tfFlapsIndex--;
+                }
+                prevFlapsIndex = simVars.tfFlapsIndex;
             }
             else if (strncmp(simVars.aircraft, "Boeing", 6) == 0) {
                 // B747 Bug - Fix master battery
