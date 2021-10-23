@@ -82,7 +82,8 @@ const char JETBRIDGE_LOC_MODE[] = "L:A32NX_FCU_LOC_MODE_ACTIVE, bool";
 const char JETBRIDGE_APPR_MODE[] = "L:A32NX_FCU_APPR_MODE_ACTIVE, bool";
 const char JETBRIDGE_AUTOTHRUST_MODE[] = "L:A32NX_AUTOTHRUST_MODE, enum";
 const char JETBRIDGE_AUTOBRAKE[] = "L:A32NX_AUTOBRAKES_ARMED_MODE, bool";
-const char JETBRIDGE_BRAKEPEDAL[] = "L:A32NX_LEFT_BRAKE_PEDAL_INPUT, percent";
+const char JETBRIDGE_LEFT_BRAKEPEDAL[] = "L:A32NX_LEFT_BRAKE_PEDAL_INPUT, percent";
+const char JETBRIDGE_RIGHT_BRAKEPEDAL[] = "L:A32NX_RIGHT_BRAKE_PEDAL_INPUT, percent";
 const char JETBRIDGE_ENGINE_EGT[] = "L:A32NX_ENGINE_EGT:1, number";
 const char JETBRIDGE_ENGINE_FUEL_FLOW[] = "L:A32NX_ENGINE_FF:1, number";
 
@@ -230,8 +231,11 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_AUTOBRAKE, sizeof(JETBRIDGE_AUTOBRAKE) - 1) == 0) {
         simVars.jbAutobrake = atof(&data[sizeof(JETBRIDGE_AUTOBRAKE) + 1]);
     }
-    else if (strncmp(&data[1], JETBRIDGE_BRAKEPEDAL, sizeof(JETBRIDGE_BRAKEPEDAL) - 1) == 0) {
-        simVars.jbBrakePedal = atof(&data[sizeof(JETBRIDGE_BRAKEPEDAL) + 1]);
+    else if (strncmp(&data[1], JETBRIDGE_LEFT_BRAKEPEDAL, sizeof(JETBRIDGE_LEFT_BRAKEPEDAL) - 1) == 0) {
+        simVars.jbLeftBrakePedal = atof(&data[sizeof(JETBRIDGE_LEFT_BRAKEPEDAL) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_RIGHT_BRAKEPEDAL, sizeof(JETBRIDGE_RIGHT_BRAKEPEDAL) - 1) == 0) {
+        simVars.jbRightBrakePedal = atof(&data[sizeof(JETBRIDGE_RIGHT_BRAKEPEDAL) + 1]);
     }
     else if (strncmp(&data[1], JETBRIDGE_ENGINE_EGT, sizeof(JETBRIDGE_ENGINE_EGT) - 1) == 0) {
         simVars.jbEngineEgt = atof(&data[sizeof(JETBRIDGE_ENGINE_EGT) + 1]);
@@ -294,7 +298,8 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_APPR_MODE);
             readJetbridgeVar(JETBRIDGE_AUTOTHRUST_MODE);
             readJetbridgeVar(JETBRIDGE_AUTOBRAKE);
-            readJetbridgeVar(JETBRIDGE_BRAKEPEDAL);
+            readJetbridgeVar(JETBRIDGE_LEFT_BRAKEPEDAL);
+            readJetbridgeVar(JETBRIDGE_RIGHT_BRAKEPEDAL);
 
             for (int loop = 0; loop < 5; loop++) {
                 // Higher frequency vars
@@ -374,7 +379,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             if (strncmp(simVars.aircraft, "FBW", 3) == 0) {
                 // Map A32NX vars to real vars
                 simVars.parkingBrakeOn = simVars.jbParkBrakePos;
-                simVars.brakePedal = simVars.jbBrakePedal;
+                simVars.brakePedal = (simVars.jbLeftBrakePedal + simVars.jbRightBrakePedal) / 2.0;
                 simVars.autopilotEngaged = simVars.jbAutopilot;
                 if (simVars.jbAutothrust == 0) {
                     simVars.autothrottleActive = 0;
