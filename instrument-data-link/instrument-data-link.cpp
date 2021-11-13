@@ -175,10 +175,10 @@ void updateVarFromJetbridge(const char* data)
         simVars.apuMasterSw = atof(&data[sizeof(JETBRIDGE_APU_MASTER_SW) + 1]);
     }
     else if (strncmp(&data[1], JETBRIDGE_APU_START, sizeof(JETBRIDGE_APU_START) - 1) == 0) {
-        simVars.apuStart = atof(&data[sizeof(JETBRIDGE_APU_START) + 1]);
+        simVars.jbApuStart = atof(&data[sizeof(JETBRIDGE_APU_START) + 1]);
     }
     else if (strncmp(&data[1], JETBRIDGE_APU_START_AVAIL, sizeof(JETBRIDGE_APU_START_AVAIL) - 1) == 0) {
-        simVars.apuStartAvail = atof(&data[sizeof(JETBRIDGE_APU_START_AVAIL) + 1]);
+        simVars.jbApuStartAvail = atof(&data[sizeof(JETBRIDGE_APU_START_AVAIL) + 1]);
     }
     else if (strncmp(&data[1], JETBRIDGE_APU_BLEED, sizeof(JETBRIDGE_APU_BLEED) - 1) == 0) {
         simVars.apuBleed = atof(&data[sizeof(JETBRIDGE_APU_BLEED) + 1]);
@@ -247,6 +247,10 @@ void updateVarFromJetbridge(const char* data)
 
 bool jetbridgeButtonPress(int eventId, double value)
 {
+    if (strncmp(simVars.aircraft, "FBW", 3) != 0) {
+        return false;
+    }
+
     switch (eventId) {
     case KEY_APU_OFF_SWITCH:
         writeJetbridgeVar(JETBRIDGE_APU_MASTER_SW, value);
@@ -378,6 +382,13 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
 
             if (strncmp(simVars.aircraft, "FBW", 3) == 0) {
                 // Map A32NX vars to real vars
+                simVars.apuStartSwitch = simVars.jbApuStart;
+                if (simVars.jbApuStartAvail) {
+                    simVars.apuPercentRpm = 100;
+                }
+                else {
+                    simVars.apuPercentRpm = 0;
+                }
                 simVars.parkingBrakeOn = simVars.jbParkBrakePos;
                 simVars.brakePedal = (simVars.jbLeftBrakePedal + simVars.jbRightBrakePedal) / 2.0;
                 simVars.autopilotEngaged = simVars.jbAutopilot;
@@ -402,6 +413,19 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.engineFuelFlow = simVars.jbEngineFuelFlow;
             }
             else if (strncmp(simVars.aircraft, "Boeing", 6) == 0) {
+                // Map Salty 747 vars to real vars
+                simVars.autopilotAltitude = simVars.autopilotAltitude3;
+
+                // Slot index 1 = Selected, 2 = Managed
+                simVars.autopilotHeadingLock = simVars.autopilotHeadingSlotIndex == 1;
+                simVars.autopilotVerticalHold = simVars.autopilotVsSlotIndex == 1;
+
+                // B747 Bug - Fix initial autopilot altitude
+                if (simVars.altAboveGround < 50 && simVars.autopilotAltitude > 49900) {
+                    // Set autopilot altitude to 5000
+                    SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_AP_ALT_VAR_SET_ENGLISH, 5000, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                }
+
                 // B747 Bug - Fix master battery
                 if (simVars.batteryLoad > 1.2) {
                     if (simVars.elecBat1 == 0) {
@@ -439,11 +463,13 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
+            //// For testing only - Leave commented out
             //if (displayDelay > 0) {
             //    displayDelay--;
             //}
             //else {
             //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //    displayDelay = 60;
             //}
 
             break;
@@ -899,10 +925,20 @@ EVENT_ID getCustomEvent(int eventNum)
 void processRequest()
 {
     if (request.requestedSize == writeDataSize) {
-        // This is a write
+         // This is a write
         if (!simVars.connected) {
             return;
         }
+
+        //// For testing only - Leave commented out
+        //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
+        //    request.writeData.eventId = KEY_FUEL_PUMP;
+        //    request.writeData.value = 1;
+        //    printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
+        //}
+        //else {
+        //    printf("Unintercepted event: %d = %f\n", request.writeData.eventId, request.writeData.value);
+        //}
 
         if (request.writeData.eventId >= VJOY_BUTTONS && request.writeData.eventId <= VJOY_BUTTONS_END) {
 #ifdef vJoyFallback
