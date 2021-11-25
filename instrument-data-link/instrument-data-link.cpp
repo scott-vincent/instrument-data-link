@@ -283,7 +283,6 @@ void pollJetbridge()
     while (!quit)
     {
         if (simVars.connected && strncmp(simVars.aircraft, "FBW", 3) == 0) {
-            // Lower frequency vars (not critical)
             readJetbridgeVar(JETBRIDGE_APU_MASTER_SW);
             readJetbridgeVar(JETBRIDGE_APU_START);
             readJetbridgeVar(JETBRIDGE_APU_START_AVAIL);
@@ -304,15 +303,11 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_AUTOBRAKE);
             readJetbridgeVar(JETBRIDGE_LEFT_BRAKEPEDAL);
             readJetbridgeVar(JETBRIDGE_RIGHT_BRAKEPEDAL);
-
-            for (int loop = 0; loop < 5; loop++) {
-                // Higher frequency vars
-                readJetbridgeVar(JETBRIDGE_AUTOPILOT_HDG);
-                readJetbridgeVar(JETBRIDGE_AUTOPILOT_VS);
-                readJetbridgeVar(JETBRIDGE_ENGINE_EGT);
-                readJetbridgeVar(JETBRIDGE_ENGINE_FUEL_FLOW);
-                Sleep(loopMillis);
-            }
+            readJetbridgeVar(JETBRIDGE_AUTOPILOT_HDG);
+            readJetbridgeVar(JETBRIDGE_AUTOPILOT_VS);
+            readJetbridgeVar(JETBRIDGE_ENGINE_EGT);
+            readJetbridgeVar(JETBRIDGE_ENGINE_FUEL_FLOW);
+            Sleep(loopMillis);
         }
         else {
             Sleep(500);
@@ -932,7 +927,7 @@ void processRequest()
 
         //// For testing only - Leave commented out
         //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
-        //    request.writeData.eventId = KEY_FUEL_PUMP;
+        //    request.writeData.eventId = A32NX_FCU_SPD_PULL;
         //    request.writeData.value = 1;
         //    printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
         //}
