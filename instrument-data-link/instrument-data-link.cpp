@@ -86,6 +86,7 @@ const char JETBRIDGE_LEFT_BRAKEPEDAL[] = "L:A32NX_LEFT_BRAKE_PEDAL_INPUT, percen
 const char JETBRIDGE_RIGHT_BRAKEPEDAL[] = "L:A32NX_RIGHT_BRAKE_PEDAL_INPUT, percent";
 const char JETBRIDGE_ENGINE_EGT[] = "L:A32NX_ENGINE_EGT:1, number";
 const char JETBRIDGE_ENGINE_FUEL_FLOW[] = "L:A32NX_ENGINE_FF:1, number";
+const char JETBRIDGE_FLAPS_INDEX[] = "L:A32NX_FLAPS_HANDLE_INDEX, number";
 
 jetbridge::Client* jetbridgeClient = 0;
 #endif
@@ -189,6 +190,9 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_ELEC_BAT2, sizeof(JETBRIDGE_ELEC_BAT2) - 1) == 0) {
         simVars.elecBat2 = atof(&data[sizeof(JETBRIDGE_ELEC_BAT2) + 1]);
     }
+    else if (strncmp(&data[1], JETBRIDGE_FLAPS_INDEX, sizeof(JETBRIDGE_FLAPS_INDEX) - 1) == 0) {
+        simVars.jbFlapsIndex = atof(&data[sizeof(JETBRIDGE_FLAPS_INDEX) + 1]);
+    }
     else if (strncmp(&data[1], JETBRIDGE_PARK_BRAKE_POS, sizeof(JETBRIDGE_PARK_BRAKE_POS) - 1) == 0) {
         simVars.jbParkBrakePos = atof(&data[sizeof(JETBRIDGE_PARK_BRAKE_POS) + 1]);
     }
@@ -289,6 +293,7 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_APU_BLEED);
             readJetbridgeVar(JETBRIDGE_ELEC_BAT1);
             readJetbridgeVar(JETBRIDGE_ELEC_BAT2);
+            readJetbridgeVar(JETBRIDGE_FLAPS_INDEX);
             readJetbridgeVar(JETBRIDGE_PARK_BRAKE_POS);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT);
             readJetbridgeVar(JETBRIDGE_AUTOTHRUST);
@@ -384,6 +389,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 else {
                     simVars.apuPercentRpm = 0;
                 }
+                simVars.tfFlapsIndex = simVars.jbFlapsIndex;
                 simVars.parkingBrakeOn = simVars.jbParkBrakePos;
                 simVars.brakePedal = (simVars.jbLeftBrakePedal + simVars.jbRightBrakePedal) / 2.0;
                 simVars.autopilotEngaged = simVars.jbAutopilot;
