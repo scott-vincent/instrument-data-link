@@ -480,7 +480,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             if (hasFlown && simVars.onGround) {
                 if (highestTouchdownVs < simVars.touchdownVs) {
                     highestTouchdownVs = simVars.touchdownVs;
-                    printf("Touchdown Vertical Speed: %d FPM\n", (int)((highestTouchdownVs * 60) + 0.5));
+                    printf("Landing Rate: %d FPM\n", (int)((highestTouchdownVs * 60) + 0.5));
                 }
             }
 
