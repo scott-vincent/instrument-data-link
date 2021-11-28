@@ -471,6 +471,11 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
+            if (!simVars.isActive) {
+                hasFlown = false;
+                highestTouchdownVs = -999;
+            }
+
             // Record highest landing rate (plane may bounce)
             if (hasFlown && simVars.onGround) {
                 if (highestTouchdownVs < simVars.touchdownVs) {
@@ -482,14 +487,14 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             // Landing rate for instrument panel to display where -999 suppresses display
             simVars.touchdownVs = highestTouchdownVs;
 
-            // For testing only - Leave commented out
-            if (displayDelay > 0) {
-                displayDelay--;
-            }
-            else {
-                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-                displayDelay = 60;
-            }
+            //// For testing only - Leave commented out
+            //if (displayDelay > 0) {
+            //    displayDelay--;
+            //}
+            //else {
+            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //    displayDelay = 60;
+            //}
 
             break;
         }
