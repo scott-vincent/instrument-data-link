@@ -105,6 +105,8 @@ bool quit = false;
 bool initiatedPushback = false;
 bool stoppedPushback = false;
 bool completedTakeOff = false;
+bool hasFlown = false;
+double highestTouchdownVs = -999;
 int onStandState = 0;
 HANDLE hSimConnect = NULL;
 extern const char* versionString;
@@ -448,6 +450,11 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             }
 
             if (simVars.altAboveGround > 50) {
+                if (simVars.altAboveGround > 200) {
+                    hasFlown = true;
+                    highestTouchdownVs = -999;
+                }
+
                 if (initiatedPushback) {
                     // Reset ground state
                     initiatedPushback = false;
@@ -464,14 +471,25 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
-            //// For testing only - Leave commented out
-            //if (displayDelay > 0) {
-            //    displayDelay--;
-            //}
-            //else {
-            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-            //    displayDelay = 60;
-            //}
+            // Record highest landing rate (plane may bounce)
+            if (hasFlown && simVars.onGround) {
+                if (highestTouchdownVs < simVars.touchdownVs) {
+                    highestTouchdownVs = simVars.touchdownVs;
+                    printf("Touchdown Vertical Speed: %d FPM\n", (int)((highestTouchdownVs * 60) + 0.5));
+                }
+            }
+
+            // Landing rate for instrument panel to display where -999 suppresses display
+            simVars.touchdownVs = highestTouchdownVs;
+
+            // For testing only - Leave commented out
+            if (displayDelay > 0) {
+                displayDelay--;
+            }
+            else {
+                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+                displayDelay = 60;
+            }
 
             break;
         }
