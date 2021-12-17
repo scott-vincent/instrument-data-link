@@ -106,7 +106,7 @@ bool initiatedPushback = false;
 bool stoppedPushback = false;
 bool completedTakeOff = false;
 bool hasFlown = false;
-double highestTouchdownVs = -999;
+double touchdownVs = -999;
 int onStandState = 0;
 HANDLE hSimConnect = NULL;
 extern const char* versionString;
@@ -450,9 +450,9 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             }
 
             if (simVars.altAboveGround > 50) {
-                if (simVars.altAboveGround > 200) {
+                if (!hasFlown && simVars.altAboveGround > 200 && simVars.connected && simVars.elecBat1 != 0) {
                     hasFlown = true;
-                    highestTouchdownVs = -999;
+                    touchdownVs = -999;
                 }
 
                 if (initiatedPushback) {
@@ -465,34 +465,36 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                     completedTakeOff = true;
                 }
             }
-            else if (completedTakeOff && (simVars.elecBat1 == 0 || simVars.elecBat2 == 0)) {
+            else if (completedTakeOff && (simVars.elecBat1 == 0 || simVars.elecBat2 == 0 || simVars.dcVolts == 0)) {
                 printf("Reset flight (Battery off)\n");
                 fflush(stdout);
                 completedTakeOff = false;
             }
 
-            if (!simVars.isActive) {
+            if (hasFlown && (!simVars.connected || !simVars.isActive || simVars.elecBat1 == 0 || simVars.dcVolts == 0)) {
                 hasFlown = false;
-                highestTouchdownVs = -999;
+                touchdownVs = -999;
             }
 
-            // Record highest landing rate (plane may bounce)
-            if (hasFlown && simVars.onGround) {
-                if (highestTouchdownVs < simVars.touchdownVs) {
-                    highestTouchdownVs = simVars.touchdownVs;
-                    printf("Landing Rate: %d FPM\n", (int)((highestTouchdownVs * 60) + 0.5));
+            // Record landing rate. TouchdownVs isn't accurate so use actual VS instead.
+            if (hasFlown && simVars.onGround && touchdownVs == -999) {
+                touchdownVs = simVars.vsiVerticalSpeed;
+                if (touchdownVs < 0) {
+                    touchdownVs = -touchdownVs;
                 }
+                printf("Landing Rate: %d FPM\n", (int)((touchdownVs * 60) + 0.5));
             }
 
-            // Landing rate for instrument panel to display where -999 suppresses display
-            simVars.touchdownVs = highestTouchdownVs;
+            // Landing rate for instrument panel to display where -999 suppresses display.
+            // Override inaccurate sim value with our own value.
+            simVars.touchdownVs = touchdownVs;
 
-            //// For testing only - Leave commented out
+            // For testing only - Leave commented out
             //if (displayDelay > 0) {
             //    displayDelay--;
             //}
             //else {
-            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //    printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
             //    displayDelay = 60;
             //}
 
@@ -954,7 +956,7 @@ void processRequest()
             return;
         }
 
-        //// For testing only - Leave commented out
+        // For testing only - Leave commented out
         //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
         //    request.writeData.eventId = A32NX_FCU_SPD_PULL;
         //    request.writeData.value = 1;
