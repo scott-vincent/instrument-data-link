@@ -448,9 +448,12 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                     }
                 }
             }
+            else {
+                simVars.elecBat1 = simVars.dcVolts > 0;
+            }
 
             if (simVars.altAboveGround > 50) {
-                if (!hasFlown && simVars.altAboveGround > 200 && simVars.connected && simVars.elecBat1 != 0) {
+                if (!hasFlown && simVars.altAboveGround > 200 && simVars.connected) {
                     hasFlown = true;
                     touchdownVs = -999;
                 }
@@ -465,13 +468,13 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                     completedTakeOff = true;
                 }
             }
-            else if (completedTakeOff && (simVars.elecBat1 == 0 || simVars.elecBat2 == 0 || simVars.dcVolts == 0)) {
+            else if (completedTakeOff && simVars.elecBat1 == 0) {
                 printf("Reset flight (Battery off)\n");
                 fflush(stdout);
                 completedTakeOff = false;
             }
 
-            if (hasFlown && (!simVars.connected || !simVars.isActive || simVars.elecBat1 == 0 || simVars.dcVolts == 0)) {
+            if (hasFlown && (!simVars.connected || !simVars.isActive || simVars.elecBat1 == 0)) {
                 hasFlown = false;
                 touchdownVs = -999;
             }
@@ -489,12 +492,12 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             // Override inaccurate sim value with our own value.
             simVars.touchdownVs = touchdownVs;
 
-            // For testing only - Leave commented out
+            //// For testing only - Leave commented out
             //if (displayDelay > 0) {
             //    displayDelay--;
             //}
             //else {
-            //    printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
             //    displayDelay = 60;
             //}
 
@@ -956,7 +959,7 @@ void processRequest()
             return;
         }
 
-        // For testing only - Leave commented out
+        //// For testing only - Leave commented out
         //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
         //    request.writeData.eventId = A32NX_FCU_SPD_PULL;
         //    request.writeData.value = 1;
