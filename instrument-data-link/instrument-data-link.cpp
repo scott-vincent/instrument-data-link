@@ -108,6 +108,7 @@ bool completedTakeOff = false;
 bool hasFlown = false;
 double touchdownVs = -999;
 int onStandState = 0;
+double skytrackState = 0;
 HANDLE hSimConnect = NULL;
 extern const char* versionString;
 extern const char* SimVarDefs[][2];
@@ -377,6 +378,9 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 memcpy(varsStart, &pObjData->dwData, varsSize);
             }
 
+            // Populate internal variables
+            simVars.skytrackState = skytrackState;
+
             if (strncmp(simVars.aircraft, "Airbus", 6) == 0) {
                 // Some liveries don't have FBW prefix
                 strcpy(simVars.aircraft, "FBW Airbus A320 Neo");
@@ -541,13 +545,20 @@ void addReadDefs()
 {
     varsStart = (double*)&simVars + 1;
     varsSize = 0;
+    bool foundInternal = false;
 
     for (int i = 0;; i++) {
         if (SimVarDefs[i][0] == NULL) {
             break;
         }
 
-        if (_strnicmp(SimVarDefs[i][1], "string", 6) == 0) {
+        if (_stricmp(SimVarDefs[i][1], "internal") == 0) {
+            foundInternal = true;
+        }
+        else if (foundInternal) {
+            printf("ERROR: Internal variables must come last. Cannot add: %s\n", SimVarDefs[i][0]);
+        }
+        else if (_strnicmp(SimVarDefs[i][1], "string", 6) == 0) {
             // Add string
             SIMCONNECT_DATATYPE dataType;
             int dataLen;
@@ -1007,6 +1018,10 @@ void processRequest()
             else {
                 return;
             }
+        }
+        else if (request.writeData.eventId == KEY_SKYTRACK_STATE) {
+            skytrackState = request.writeData.value;
+            return;
         }
 
         if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
