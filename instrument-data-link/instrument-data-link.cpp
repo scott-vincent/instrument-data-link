@@ -456,10 +456,8 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             }
 
             if (simVars.altAboveGround > 50) {
-                if (!hasFlown && simVars.altAboveGround > 200 && simVars.connected) {
-                    hasFlown = true;
-                    simVars.landingRate = -999;
-                }
+                hasFlown = true;
+                simVars.landingRate = -999;
 
                 if (initiatedPushback) {
                     // Reset ground state
@@ -484,10 +482,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
 
             // Record landing rate. TouchdownVs isn't accurate so use actual VS instead.
             if (hasFlown && simVars.onGround && simVars.landingRate == -999) {
-                simVars.landingRate = simVars.vsiVerticalSpeed;
-                if (simVars.landingRate < 0) {
-                    simVars.landingRate = -simVars.landingRate;
-                }
+                simVars.landingRate = abs(simVars.vsiVerticalSpeed);
                 printf("Landing Rate: %d FPM\n", (int)((simVars.landingRate * 60) + 0.5));
             }
 
