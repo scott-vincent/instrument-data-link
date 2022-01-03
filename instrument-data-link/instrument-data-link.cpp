@@ -106,7 +106,6 @@ bool initiatedPushback = false;
 bool stoppedPushback = false;
 bool completedTakeOff = false;
 bool hasFlown = false;
-double touchdownVs = -999;
 int onStandState = 0;
 double skytrackState = 0;
 HANDLE hSimConnect = NULL;
@@ -459,7 +458,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             if (simVars.altAboveGround > 50) {
                 if (!hasFlown && simVars.altAboveGround > 200 && simVars.connected) {
                     hasFlown = true;
-                    touchdownVs = -999;
+                    simVars.landingRate = -999;
                 }
 
                 if (initiatedPushback) {
@@ -478,25 +477,21 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
-            if (hasFlown && (!simVars.connected || !simVars.isActive || simVars.elecBat1 == 0)) {
+            if (!simVars.connected || simVars.elecBat1 == 0) {
                 hasFlown = false;
-                touchdownVs = -999;
+                simVars.landingRate = -999;
             }
 
             // Record landing rate. TouchdownVs isn't accurate so use actual VS instead.
-            if (hasFlown && simVars.onGround && touchdownVs == -999) {
-                touchdownVs = simVars.vsiVerticalSpeed;
-                if (touchdownVs < 0) {
-                    touchdownVs = -touchdownVs;
+            if (hasFlown && simVars.onGround && simVars.landingRate == -999) {
+                simVars.landingRate = simVars.vsiVerticalSpeed;
+                if (simVars.landingRate < 0) {
+                    simVars.landingRate = -simVars.landingRate;
                 }
-                printf("Landing Rate: %d FPM\n", (int)((touchdownVs * 60) + 0.5));
+                printf("Landing Rate: %d FPM\n", (int)((simVars.landingRate * 60) + 0.5));
             }
 
-            // Landing rate for instrument panel to display where -999 suppresses display.
-            // Override inaccurate sim value with our own value.
-            simVars.touchdownVs = touchdownVs;
-
-            //// For testing only - Leave commented out
+            // For testing only - Leave commented out
             //if (displayDelay > 0) {
             //    displayDelay--;
             //}
