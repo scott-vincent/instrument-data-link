@@ -141,6 +141,12 @@ SOCKET sockfd;
 sockaddr_in senderAddr;
 int addrSize = sizeof(senderAddr);
 Request request;
+SOCKET posSockfd;
+sockaddr_in posSendAddr;
+PosData posData;
+int posDataSize = sizeof(PosData);
+int posSkip = 0;
+static void sendPosition();
 const int deltaDoubleSize = sizeof(DeltaDouble);
 const int deltaStringSize = sizeof(DeltaString);
 
@@ -380,10 +386,8 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             // Populate internal variables
             simVars.skytrackState = skytrackState;
 
-            if (strncmp(simVars.aircraft, "Airbus", 6) == 0) {
-                // Some liveries don't have FBW prefix
-                strcpy(simVars.aircraft, "FBW Airbus A320 Neo");
-            }
+            // Constantly send aircraft position to localhost
+            sendPosition();
 
             if (strncmp(simVars.aircraft, "FBW", 3) == 0) {
                 // Map A32NX vars to real vars
@@ -486,7 +490,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 printf("Landing Rate: %d FPM\n", (int)((simVars.landingRate * 60) + 0.5));
             }
 
-            // For testing only - Leave commented out
+            //// For testing only - Leave commented out
             //if (displayDelay > 0) {
             //    displayDelay--;
             //}
@@ -658,7 +662,7 @@ void cleanUp()
 
 int __cdecl _tmain(int argc, _TCHAR* argv[])
 {
-    printf("Instrument Data Link %s Copyright (c) 2021 Scott Vincent\n", versionString);
+    printf("Instrument Data Link %s Copyright (c) 2022 Scott Vincent\n", versionString);
 
     // Yield so server can start
     Sleep(100);
@@ -806,6 +810,56 @@ void sendDelta(char** prevSimVars, long dataSize)
 
     // Update prev data
     memcpy(*prevSimVars, &simVars, dataSize);
+}
+
+/// <summary>
+/// Open a socket to constantly send position of aircraft to localhost (dataLinkPort + 1)
+/// </summary>
+bool initSendPosition(const char *host, int port)
+{
+    if ((posSockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET) {
+        printf("Failed to create UDP socket for sending position\n");
+        return false;
+    }
+
+    int opt = 1;
+    setsockopt(posSockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
+
+    posSendAddr.sin_family = AF_INET;
+    posSendAddr.sin_port = htons(port);
+    posSendAddr.sin_addr.s_addr = inet_addr(host);
+
+    printf("Sending aircraft position to host: %s port: %d\n", host, port);
+
+    return true;
+}
+
+/// <summary>
+/// Constantly send position of aircraft to localhost
+/// </summary>
+void sendPosition()
+{
+    if (posData.lat == simVars.gpsLat && posData.lon == simVars.gpsLon && posData.heading == simVars.hiHeadingTrue) {
+        posSkip--;
+        if (posSkip > 0) {
+            return;
+        }
+    }
+
+    posSkip = 30;
+    posData.lat = simVars.gpsLat;
+    posData.lon = simVars.gpsLon;
+    posData.heading = simVars.hiHeadingTrue;
+
+    bytes = sendto(posSockfd, (char*)&posData, posDataSize, 0, (SOCKADDR*)&posSendAddr, addrSize);
+    if (bytes <= 0) {
+        printf("Send aircraft position error: %d\n", WSAGetLastError());
+        return;
+    }
+
+#ifdef SHOW_NETWORK_USAGE
+    networkOut += bytes;
+#endif
 }
 
 /// <summary>
@@ -1129,6 +1183,13 @@ void server()
         exit(1);
     }
 
+    const char sendPosHost[] = "127.0.0.1";
+    int sendPosPort = Port + 1;
+    if (!initSendPosition(sendPosHost, sendPosPort)) {
+        printf("Server failed to bind to %s port %d: %ld\n", sendPosHost, sendPosPort, WSAGetLastError());
+        exit(1);
+    }
+
     printf("Server listening on port %d\n", Port);
 
     timeval timeout;
@@ -1140,7 +1201,7 @@ void server()
         FD_ZERO(&fds);
         FD_SET(sockfd, &fds);
 
-        // Wait for instrument panel to poll (non-blocking, 1 second timeout)
+        // Wait for instrument panel to poll (non-blocking, 0.5 second timeout)
         int sel = select(FD_SETSIZE, &fds, 0, 0, &timeout);
         if (sel > 0) {
             bytes = recvfrom(sockfd, (char*)&request, sizeof(request), 0, (SOCKADDR*)&senderAddr, &addrSize);
