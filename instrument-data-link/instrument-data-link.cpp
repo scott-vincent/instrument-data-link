@@ -386,9 +386,6 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             // Populate internal variables
             simVars.skytrackState = skytrackState;
 
-            // Constantly send aircraft position to localhost
-            sendPosition();
-
             if (strncmp(simVars.aircraft, "FBW", 3) == 0) {
                 // Map A32NX vars to real vars
                 simVars.apuStartSwitch = simVars.jbApuStart;
@@ -813,56 +810,6 @@ void sendDelta(char** prevSimVars, long dataSize)
 }
 
 /// <summary>
-/// Open a socket to constantly send position of aircraft to localhost (dataLinkPort + 1)
-/// </summary>
-bool initSendPosition(const char *host, int port)
-{
-    if ((posSockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET) {
-        printf("Failed to create UDP socket for sending position\n");
-        return false;
-    }
-
-    int opt = 1;
-    setsockopt(posSockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
-
-    posSendAddr.sin_family = AF_INET;
-    posSendAddr.sin_port = htons(port);
-    posSendAddr.sin_addr.s_addr = inet_addr(host);
-
-    printf("Sending aircraft position to host: %s port: %d\n", host, port);
-
-    return true;
-}
-
-/// <summary>
-/// Constantly send position of aircraft to localhost
-/// </summary>
-void sendPosition()
-{
-    if (posData.lat == simVars.gpsLat && posData.lon == simVars.gpsLon && posData.heading == simVars.hiHeadingTrue) {
-        posSkip--;
-        if (posSkip > 0) {
-            return;
-        }
-    }
-
-    posSkip = 30;
-    posData.lat = simVars.gpsLat;
-    posData.lon = simVars.gpsLon;
-    posData.heading = simVars.hiHeadingTrue;
-
-    bytes = sendto(posSockfd, (char*)&posData, posDataSize, 0, (SOCKADDR*)&posSendAddr, addrSize);
-    if (bytes <= 0) {
-        printf("Send aircraft position error: %d\n", WSAGetLastError());
-        return;
-    }
-
-#ifdef SHOW_NETWORK_USAGE
-    networkOut += bytes;
-#endif
-}
-
-/// <summary>
 /// If an event button is pressed return either EVENT_NONE or the event (sound)
 /// that should be played depending on current aircraft state.
 /// </summary>
@@ -1180,13 +1127,6 @@ void server()
 
     if (bind(sockfd, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
         printf("Server failed to bind to localhost port %d: %ld\n", Port, WSAGetLastError());
-        exit(1);
-    }
-
-    const char sendPosHost[] = "127.0.0.1";
-    int sendPosPort = Port + 1;
-    if (!initSendPosition(sendPosHost, sendPosPort)) {
-        printf("Server failed to bind to %s port %d: %ld\n", sendPosHost, sendPosPort, WSAGetLastError());
         exit(1);
     }
 
