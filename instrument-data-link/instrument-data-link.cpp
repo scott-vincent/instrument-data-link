@@ -73,8 +73,9 @@ const char JETBRIDGE_AUTOPILOT[] = "L:A32NX_AUTOPILOT_1_ACTIVE, bool";
 const char JETBRIDGE_AUTOTHRUST[] = "L:A32NX_AUTOTHRUST_STATUS, enum";
 const char JETBRIDGE_AUTOPILOT_HDG[] = "L:A32NX_AUTOPILOT_HEADING_SELECTED, degrees";
 const char JETBRIDGE_AUTOPILOT_VS[] = "L:A32NX_AUTOPILOT_VS_SELECTED, feetperminute";
-const char JETBRIDGE_MANAGED_SPEED[] = "L:A32NX_FCU_SPD_MANAGED_DOT, bool";
-const char JETBRIDGE_MANAGED_HEADING[] = "L:A32NX_FCU_HDG_MANAGED_DOT, bool";
+const char JETBRIDGE_AUTOPILOT_FPA[] = "L:A32NX_AUTOPILOT_FPA_SELECTED, degrees";
+const char JETBRIDGE_MANAGED_SPEED[] = "L:A32NX_FCU_SPD_MANAGED_DASHES, bool";
+const char JETBRIDGE_MANAGED_HEADING[] = "L:A32NX_FCU_HDG_MANAGED_DASHES, bool";
 const char JETBRIDGE_MANAGED_ALTITUDE[] = "L:A32NX_FCU_ALT_MANAGED, bool";
 const char JETBRIDGE_LATERAL_MODE[] = "L:A32NX_FMA_LATERAL_MODE, enum";
 const char JETBRIDGE_VERTICAL_MODE[] = "L:A32NX_FMA_VERTICAL_MODE, enum";
@@ -216,6 +217,9 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT_VS, sizeof(JETBRIDGE_AUTOPILOT_VS) - 1) == 0) {
         simVars.jbAutopilotVerticalSpeed = atof(&data[sizeof(JETBRIDGE_AUTOPILOT_VS) + 1]);
     }
+    else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT_FPA, sizeof(JETBRIDGE_AUTOPILOT_FPA) - 1) == 0) {
+        simVars.jbAutopilotFpa = atof(&data[sizeof(JETBRIDGE_AUTOPILOT_FPA) + 1]);
+    }
     else if (strncmp(&data[1], JETBRIDGE_MANAGED_SPEED, sizeof(JETBRIDGE_MANAGED_SPEED) - 1) == 0) {
         simVars.jbManagedSpeed = atof(&data[sizeof(JETBRIDGE_MANAGED_SPEED) + 1]);
     }
@@ -318,6 +322,7 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_RIGHT_BRAKEPEDAL);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_HDG);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_VS);
+            readJetbridgeVar(JETBRIDGE_AUTOPILOT_FPA);
             readJetbridgeVar(JETBRIDGE_ENGINE_EGT);
             readJetbridgeVar(JETBRIDGE_ENGINE_FUEL_FLOW);
             Sleep(loopMillis);
@@ -408,7 +413,13 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.autopilotHeading = simVars.jbAutopilotHeading;
                 simVars.autopilotVerticalSpeed = simVars.jbAutopilotVerticalSpeed;
                 if (simVars.jbVerticalMode == 14) {
+                    // V/S mode engaged
                     simVars.autopilotVerticalHold = 1;
+                }
+                else if (simVars.jbVerticalMode == 15) {
+                    // FPA mode engaged
+                    simVars.autopilotVerticalHold = -1;
+                    simVars.autopilotVerticalSpeed = simVars.jbAutopilotFpa;
                 }
                 else {
                     simVars.autopilotVerticalHold = 0;
