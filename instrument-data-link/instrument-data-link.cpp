@@ -379,9 +379,9 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
         {
         case REQ_ID:
         {
-            if (pObjData->dwSize < varsSize) {
-                printf("Error: SimConnect expected %d bytes but received %d bytes\n",
-                    varsSize, pObjData->dwSize);
+            int dataSize = pObjData->dwSize - ((int)(&pObjData->dwData) - (int)pData);
+            if (dataSize != varsSize) {
+                printf("Error: SimConnect expected %d bytes but received %d bytes\n", varsSize, dataSize);
                 fflush(stdout);
             }
             else {
@@ -575,7 +575,7 @@ void addReadDefs()
                 dataLen = 32;
             }
 
-            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_READ_ALL, SimVarDefs[i][0], NULL, dataType) < 0) {
+            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_READ_ALL, SimVarDefs[i][0], NULL, dataType) != 0) {
                 printf("Data def failed: %s (string)\n", SimVarDefs[i][0]);
             }
             else {
@@ -588,7 +588,7 @@ void addReadDefs()
         }
         else {
             // Add double (float64)
-            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_READ_ALL, SimVarDefs[i][0], SimVarDefs[i][1]) < 0) {
+            if (SimConnect_AddToDataDefinition(hSimConnect, DEF_READ_ALL, SimVarDefs[i][0], SimVarDefs[i][1]) != 0) {
                 printf("Data def failed: %s, %s\n", SimVarDefs[i][0], SimVarDefs[i][1]);
             }
             else {
@@ -617,7 +617,7 @@ void init()
     mapEvents();
 
     // Start requesting data
-    if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_READ_ALL, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_VISUAL_FRAME, 0, 0, 0, 0) < 0) {
+    if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_READ_ALL, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_VISUAL_FRAME, 0, 0, 0, 0) != 0) {
         printf("Failed to start requesting data\n");
     }
 
@@ -632,7 +632,7 @@ void init()
 void cleanUp()
 {
     if (hSimConnect) {
-        if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_READ_ALL, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_NEVER, 0, 0, 0, 0) < 0) {
+        if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_READ_ALL, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_NEVER, 0, 0, 0, 0) != 0) {
             printf("Failed to stop requesting data\n");
         }
 
