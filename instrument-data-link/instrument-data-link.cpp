@@ -498,14 +498,15 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 printf("Landing Rate: %d FPM\n", (int)((simVars.landingRate * 60) + 0.5));
             }
 
-            //// For testing only - Leave commented out
-            //if (displayDelay > 0) {
-            //    displayDelay--;
-            //}
-            //else {
-            //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-            //    displayDelay = 60;
-            //}
+            // For testing only - Leave commented out
+            if (displayDelay > 0) {
+                displayDelay--;
+            }
+            else {
+                //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+                printf("apuStartSwitch: %f   jbApuStart: %f\n", simVars.apuStartSwitch, simVars.jbApuStart);
+                displayDelay = 60;
+            }
 
             break;
         }
