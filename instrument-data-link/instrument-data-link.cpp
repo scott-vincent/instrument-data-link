@@ -267,7 +267,7 @@ void updateVarFromJetbridge(const char* data)
 
 bool jetbridgeButtonPress(int eventId, double value)
 {
-    if (strncmp(simVars.aircraft, "FBW", 3) != 0) {
+    if (strncmp(simVars.aircraft, "FBW", 3) != 0 && strncmp(simVars.aircraft, "Airbus A320", 11) != 0) {
         return false;
     }
 
@@ -302,7 +302,7 @@ void pollJetbridge()
 
     while (!quit)
     {
-        if (simVars.connected && strncmp(simVars.aircraft, "FBW", 3) == 0) {
+        if (simVars.connected && (strncmp(simVars.aircraft, "FBW", 3) == 0 || strncmp(simVars.aircraft, "Airbus A320", 11) == 0)) {
             readJetbridgeVar(JETBRIDGE_APU_MASTER_SW);
             readJetbridgeVar(JETBRIDGE_APU_START);
             readJetbridgeVar(JETBRIDGE_APU_START_AVAIL);
@@ -396,7 +396,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             // Populate internal variables
             simVars.skytrackState = skytrackState;
 
-            if (strncmp(simVars.aircraft, "FBW", 3) == 0) {
+            if (simVars.connected && (strncmp(simVars.aircraft, "FBW", 3) == 0 || strncmp(simVars.aircraft, "Airbus A320", 11) == 0)) {
                 // Map A32NX vars to real vars
                 simVars.apuStartSwitch = simVars.jbApuStart;
                 if (simVars.jbApuStartAvail) {
