@@ -69,7 +69,8 @@ const char JETBRIDGE_APU_BLEED[] = "L:A32NX_OVHD_PNEU_APU_BLEED_PB_IS_ON, bool";
 const char JETBRIDGE_ELEC_BAT1[] = "L:A32NX_OVHD_ELEC_BAT_1_PB_IS_AUTO, bool";
 const char JETBRIDGE_ELEC_BAT2[] = "L:A32NX_OVHD_ELEC_BAT_2_PB_IS_AUTO, bool";
 const char JETBRIDGE_PARK_BRAKE_POS[] = "L:A32NX_PARK_BRAKE_LEVER_POS, bool";
-const char JETBRIDGE_AUTOPILOT[] = "L:A32NX_AUTOPILOT_1_ACTIVE, bool";
+const char JETBRIDGE_AUTOPILOT_1[] = "L:A32NX_AUTOPILOT_1_ACTIVE, bool";
+const char JETBRIDGE_AUTOPILOT_2[] = "L:A32NX_AUTOPILOT_2_ACTIVE, bool";
 const char JETBRIDGE_AUTOTHRUST[] = "L:A32NX_AUTOTHRUST_STATUS, enum";
 const char JETBRIDGE_AUTOPILOT_HDG[] = "L:A32NX_AUTOPILOT_HEADING_SELECTED, degrees";
 const char JETBRIDGE_AUTOPILOT_VS[] = "L:A32NX_AUTOPILOT_VS_SELECTED, feetperminute";
@@ -205,8 +206,11 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_PARK_BRAKE_POS, sizeof(JETBRIDGE_PARK_BRAKE_POS) - 1) == 0) {
         simVars.jbParkBrakePos = atof(&data[sizeof(JETBRIDGE_PARK_BRAKE_POS) + 1]);
     }
-    else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT, sizeof(JETBRIDGE_AUTOPILOT) - 1) == 0) {
-        simVars.jbAutopilot = atof(&data[sizeof(JETBRIDGE_AUTOPILOT) + 1]);
+    else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT_1, sizeof(JETBRIDGE_AUTOPILOT_1) - 1) == 0) {
+        simVars.jbAutopilot1 = atof(&data[sizeof(JETBRIDGE_AUTOPILOT_1) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT_2, sizeof(JETBRIDGE_AUTOPILOT_2) - 1) == 0) {
+        simVars.jbAutopilot2 = atof(&data[sizeof(JETBRIDGE_AUTOPILOT_2) + 1]);
     }
     else if (strncmp(&data[1], JETBRIDGE_AUTOTHRUST, sizeof(JETBRIDGE_AUTOTHRUST) - 1) == 0) {
         simVars.jbAutothrust = atof(&data[sizeof(JETBRIDGE_AUTOTHRUST) + 1]);
@@ -307,7 +311,8 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_ELEC_BAT2);
             readJetbridgeVar(JETBRIDGE_FLAPS_INDEX);
             readJetbridgeVar(JETBRIDGE_PARK_BRAKE_POS);
-            readJetbridgeVar(JETBRIDGE_AUTOPILOT);
+            readJetbridgeVar(JETBRIDGE_AUTOPILOT_1);
+            readJetbridgeVar(JETBRIDGE_AUTOPILOT_2);
             readJetbridgeVar(JETBRIDGE_AUTOTHRUST);
             readJetbridgeVar(JETBRIDGE_MANAGED_SPEED);
             readJetbridgeVar(JETBRIDGE_MANAGED_HEADING);
@@ -403,7 +408,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.tfFlapsIndex = simVars.jbFlapsIndex;
                 simVars.parkingBrakeOn = simVars.jbParkBrakePos;
                 simVars.brakePedal = (simVars.jbLeftBrakePedal + simVars.jbRightBrakePedal) / 2.0;
-                simVars.autopilotEngaged = simVars.jbAutopilot;
+                simVars.autopilotEngaged = simVars.jbAutopilot1 == 0 && simVars.jbAutopilot2 == 0 ? 0 : 1;
                 if (simVars.jbAutothrust == 0) {
                     simVars.autothrottleActive = 0;
                 }
