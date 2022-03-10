@@ -16,6 +16,7 @@ const int Port = 52020;
 // Change the next line to false if you always want to send
 // full data across the network rather than deltas.
 const bool UseDeltas = true;
+const int MaxDataSize = 8192;
 
 // Uncomment the next line to show network data usage.
 // This should be a lot lower when using deltas.
@@ -69,9 +70,11 @@ const char JETBRIDGE_APU_BLEED[] = "L:A32NX_OVHD_PNEU_APU_BLEED_PB_IS_ON, bool";
 const char JETBRIDGE_ELEC_BAT1[] = "L:A32NX_OVHD_ELEC_BAT_1_PB_IS_AUTO, bool";
 const char JETBRIDGE_ELEC_BAT2[] = "L:A32NX_OVHD_ELEC_BAT_2_PB_IS_AUTO, bool";
 const char JETBRIDGE_PARK_BRAKE_POS[] = "L:A32NX_PARK_BRAKE_LEVER_POS, bool";
+const char JETBRIDGE_XPNDR_MODE[] = "L:A32NX_TRANSPONDER_MODE, enum";
 const char JETBRIDGE_AUTOPILOT_1[] = "L:A32NX_AUTOPILOT_1_ACTIVE, bool";
 const char JETBRIDGE_AUTOPILOT_2[] = "L:A32NX_AUTOPILOT_2_ACTIVE, bool";
 const char JETBRIDGE_AUTOTHRUST[] = "L:A32NX_AUTOTHRUST_STATUS, enum";
+const char JETBRIDGE_TCAS_MODE[] = "L:A32NX_TCAS_MODE, enum";
 const char JETBRIDGE_AUTOPILOT_HDG[] = "L:A32NX_AUTOPILOT_HEADING_SELECTED, degrees";
 const char JETBRIDGE_AUTOPILOT_VS[] = "L:A32NX_AUTOPILOT_VS_SELECTED, feetperminute";
 const char JETBRIDGE_AUTOPILOT_FPA[] = "L:A32NX_AUTOPILOT_FPA_SELECTED, degrees";
@@ -114,6 +117,7 @@ HANDLE hSimConnect = NULL;
 extern const char* versionString;
 extern const char* SimVarDefs[][2];
 extern WriteEvent WriteEvents[];
+double at = -1, tcas = -1, xpdr = -1;
 
 SimVars simVars;
 double *varsStart;
@@ -126,12 +130,12 @@ long autopilotDataSize = (long)((LONG_PTR)(&simVars.autothrottleActive) + (long)
 long radioDataSize = (long)((LONG_PTR)(&simVars.transponderCode) + (long)sizeof(double) - (LONG_PTR)&simVars);
 long lightsDataSize = (long)((LONG_PTR)(&simVars.apuPercentRpm) + (long)sizeof(double) - (LONG_PTR)&simVars);
 
-char deltaData[2048];
+char deltaData[MaxDataSize];
 long deltaSize;
-char* prevInstrumentsData = NULL;
-char* prevAutopilotData = NULL;
-char* prevRadioData = NULL;
-char* prevLightsData = NULL;
+char* prevInstrumentsData;
+char* prevAutopilotData;
+char* prevRadioData;
+char* prevLightsData;
 time_t lastPushbackAdjust = 0;
 
 int active = -1;
@@ -148,7 +152,6 @@ sockaddr_in posSendAddr;
 PosData posData;
 int posDataSize = sizeof(PosData);
 int posSkip = 0;
-static void sendPosition();
 const int deltaDoubleSize = sizeof(DeltaDouble);
 const int deltaStringSize = sizeof(DeltaString);
 
@@ -206,6 +209,9 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_PARK_BRAKE_POS, sizeof(JETBRIDGE_PARK_BRAKE_POS) - 1) == 0) {
         simVars.jbParkBrakePos = atof(&data[sizeof(JETBRIDGE_PARK_BRAKE_POS) + 1]);
     }
+    else if (strncmp(&data[1], JETBRIDGE_XPNDR_MODE, sizeof(JETBRIDGE_XPNDR_MODE) - 1) == 0) {
+        simVars.jbXpndrMode = atof(&data[sizeof(JETBRIDGE_XPNDR_MODE) + 1]);
+    }
     else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT_1, sizeof(JETBRIDGE_AUTOPILOT_1) - 1) == 0) {
         simVars.jbAutopilot1 = atof(&data[sizeof(JETBRIDGE_AUTOPILOT_1) + 1]);
     }
@@ -214,6 +220,9 @@ void updateVarFromJetbridge(const char* data)
     }
     else if (strncmp(&data[1], JETBRIDGE_AUTOTHRUST, sizeof(JETBRIDGE_AUTOTHRUST) - 1) == 0) {
         simVars.jbAutothrust = atof(&data[sizeof(JETBRIDGE_AUTOTHRUST) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_TCAS_MODE, sizeof(JETBRIDGE_TCAS_MODE) - 1) == 0) {
+        simVars.jbTcasMode = atof(&data[sizeof(JETBRIDGE_TCAS_MODE) + 1]);
     }
     else if (strncmp(&data[1], JETBRIDGE_AUTOPILOT_HDG, sizeof(JETBRIDGE_AUTOPILOT_HDG) - 1) == 0) {
         simVars.jbAutopilotHeading = atof(&data[sizeof(JETBRIDGE_AUTOPILOT_HDG) + 1]);
@@ -311,9 +320,11 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_ELEC_BAT2);
             readJetbridgeVar(JETBRIDGE_FLAPS_INDEX);
             readJetbridgeVar(JETBRIDGE_PARK_BRAKE_POS);
+            readJetbridgeVar(JETBRIDGE_XPNDR_MODE);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_1);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_2);
             readJetbridgeVar(JETBRIDGE_AUTOTHRUST);
+            readJetbridgeVar(JETBRIDGE_TCAS_MODE);
             readJetbridgeVar(JETBRIDGE_MANAGED_SPEED);
             readJetbridgeVar(JETBRIDGE_MANAGED_HEADING);
             readJetbridgeVar(JETBRIDGE_MANAGED_ALTITUDE);
@@ -408,13 +419,15 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.tfFlapsIndex = simVars.jbFlapsIndex;
                 simVars.parkingBrakeOn = simVars.jbParkBrakePos;
                 simVars.brakePedal = (simVars.jbLeftBrakePedal + simVars.jbRightBrakePedal) / 2.0;
-                simVars.autopilotEngaged = simVars.jbAutopilot1 == 0 && simVars.jbAutopilot2 == 0 ? 0 : 1;
+                simVars.autopilotEngaged = (simVars.jbAutopilot1 == 0 && simVars.jbAutopilot2 == 0) ? 0 : 1;
                 if (simVars.jbAutothrust == 0) {
                     simVars.autothrottleActive = 0;
                 }
                 else {
                     simVars.autothrottleActive = 1;
                 }
+                simVars.transponderState = simVars.jbXpndrMode;
+                simVars.tcasState = simVars.jbTcasMode;
                 simVars.autopilotHeading = simVars.jbAutopilotHeading;
                 simVars.autopilotVerticalSpeed = simVars.jbAutopilotVerticalSpeed;
                 if (simVars.jbVerticalMode == 14) {
@@ -500,15 +513,28 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             // Record landing rate. TouchdownVs isn't accurate so use actual VS instead.
             if (hasFlown && simVars.onGround && simVars.landingRate == -999) {
                 simVars.landingRate = abs(simVars.vsiVerticalSpeed);
-                printf("Landing Rate: %d FPM\n", (int)((simVars.landingRate * 60) + 0.5));
+                if (simVars.landingRate != 0) {
+                    printf("Landing Rate: %d FPM\n", (int)((simVars.landingRate * 60) + 0.5));
+                }
             }
 
-            //// For testing only - Leave commented out
+            // For testing only - Leave commented out
             //if (displayDelay > 0) {
             //    displayDelay--;
             //}
             //else {
             //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
+            //    // Extra debug code
+            //    if (at != simVars.autothrottleActive || tcas != simVars.tcasState || xpdr != simVars.transponderState) {
+            //        time_t now;
+            //        time(&now);
+            //        printf("at: %f  tcas: %f  xpdr: %f  %s", simVars.autothrottleActive, simVars.tcasState,
+            //            simVars.transponderState, asctime(localtime(&now)));
+            //        fflush(stdout);
+            //        at = simVars.autothrottleActive;
+            //        tcas = simVars.tcasState;
+            //        xpdr = simVars.transponderState;
+            //    }
             //    displayDelay = 60;
             //}
 
@@ -653,22 +679,6 @@ void cleanUp()
     // Wait for server to quit
     serverThread.join();
 
-    if (prevInstrumentsData != NULL) {
-        delete [] prevInstrumentsData;
-    }
-
-    if (prevAutopilotData != NULL) {
-        delete [] prevAutopilotData;
-    }
-
-    if (prevRadioData != NULL) {
-        delete [] prevRadioData;
-    }
-
-    if (prevLightsData != NULL) {
-        delete [] prevLightsData;
-    }
-
     WSACleanup();
     printf("Finished\n");
 }
@@ -741,11 +751,26 @@ void addDeltaDouble(long offset, double newVal)
 void addDeltaString(long offset, char *newVal)
 {
     DeltaString deltaString;
-    deltaString.offset = 2048 + offset;     // Add 2048 so we know it is a string
+    deltaString.offset = 0x10000 | offset;  // Set high bit so we know it is a string
     strncpy(deltaString.data, newVal, 32);  // Only support string32
 
     memcpy(deltaData + deltaSize, &deltaString, deltaStringSize);
     deltaSize += deltaStringSize;
+}
+
+/// <summary>
+/// Send the full set of data if this a new connection or we
+/// don't want to use deltas.
+/// </summary>
+void sendFull(char** prevSimVars, long dataSize)
+{
+    bytes = sendto(sockfd, (char*)&simVars, dataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+#ifdef SHOW_NETWORK_USAGE
+    networkOut += bytes;
+#endif
+
+    // Update prev data
+    memcpy(*prevSimVars, &simVars, dataSize);
 }
 
 /// <summary>
@@ -755,19 +780,6 @@ void addDeltaString(long offset, char *newVal)
 /// </summary>
 void sendDelta(char** prevSimVars, long dataSize)
 {
-    if (*prevSimVars == NULL || !UseDeltas) {
-        // No prev data so send full rather than delta
-        bytes = sendto(sockfd, (char*)&simVars, dataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
-#ifdef SHOW_NETWORK_USAGE
-        networkOut += bytes;
-#endif
-
-        // Update prev data
-        *prevSimVars = new char[dataSize];
-        memcpy(*prevSimVars, &simVars, dataSize);
-        return;
-    }
-
     // Initialise delta data
     deltaSize = 0;
 
@@ -797,6 +809,12 @@ void sendDelta(char** prevSimVars, long dataSize)
             double* oldVar = (double*)oldVarPtr;
             double* newVar = (double*)newVarPtr;
             if (*oldVar != *newVar) {
+                // Debug code
+                //int offnum = offset / 8;
+                //if (offnum == 59 || offnum == 60) {
+                //    printf("offset: %d  old: %f  new: %f\n", offnum, *oldVar, *newVar);
+                //    fflush(stdout);
+                //}
                 addDeltaDouble(offset, *newVar);
             }
 
@@ -1053,59 +1071,55 @@ void processRequest()
     }
     else if (request.requestedSize == instrumentsDataSize) {
         // Send instrument data to the client that polled us
-        if (active != 1 || request.wantFullData) {
+        if (active != 1 || request.wantFullData || !UseDeltas) {
             if (active != 1) {
                 printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
                 active = 1;
             }
-            if (prevInstrumentsData != NULL) {
-                delete [] prevInstrumentsData;
-                prevInstrumentsData = NULL;
-            }
+            sendFull(&prevInstrumentsData, instrumentsDataSize);
         }
-        sendDelta(&prevInstrumentsData, instrumentsDataSize);
+        else {
+            sendDelta(&prevInstrumentsData, instrumentsDataSize);
+        }
     }
     else if (request.requestedSize == autopilotDataSize) {
         // Send autopilot data to the client that polled us
-        if (!autopilotPanelConnected || request.wantFullData) {
+        if (!autopilotPanelConnected || request.wantFullData || !UseDeltas) {
             if (!autopilotPanelConnected) {
                 printf("Autopilot panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
                 autopilotPanelConnected = true;
             }
-            if (prevAutopilotData != NULL) {
-                delete [] prevAutopilotData;
-                prevAutopilotData = NULL;
-            }
+            sendFull(&prevAutopilotData, autopilotDataSize);
         }
-        sendDelta(&prevAutopilotData, autopilotDataSize);
+        else {
+            sendDelta(&prevAutopilotData, autopilotDataSize);
+        }
     }
     else if (request.requestedSize == radioDataSize) {
         // Send radio data to the client that polled us
-        if (!radioPanelConnected || request.wantFullData) {
+        if (!radioPanelConnected || request.wantFullData || !UseDeltas) {
             if (!radioPanelConnected) {
                 printf("Radio panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
                 radioPanelConnected = true;
             }
-            if (prevRadioData != NULL) {
-                delete [] prevRadioData;
-                prevRadioData = NULL;
-            }
+            sendFull(&prevRadioData, radioDataSize);
         }
-        sendDelta(&prevRadioData, radioDataSize);
+        else {
+            sendDelta(&prevRadioData, radioDataSize);
+        }
     }
     else if (request.requestedSize == lightsDataSize) {
         // Send power/lights data to the client that polled us
-        if (!lightsPanelConnected || request.wantFullData) {
+        if (!lightsPanelConnected || request.wantFullData || !UseDeltas) {
             if (!lightsPanelConnected) {
                 printf("Power/Lights panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
                 lightsPanelConnected = true;
             }
-            if (prevLightsData != NULL) {
-                delete [] prevLightsData;
-                prevLightsData = NULL;
-            }
+            sendFull(&prevLightsData, lightsDataSize);
         }
-        sendDelta(&prevLightsData, lightsDataSize);
+        else {
+            sendDelta(&prevLightsData, lightsDataSize);
+        }
     }
     else {
         // Data size mismatch
@@ -1145,6 +1159,11 @@ void server()
         printf("Server failed to bind to localhost port %d: %ld\n", Port, WSAGetLastError());
         exit(1);
     }
+
+    prevInstrumentsData = (char*)malloc(MaxDataSize);
+    prevAutopilotData = (char*)malloc(MaxDataSize);
+    prevRadioData = (char*)malloc(MaxDataSize);
+    prevLightsData = (char*)malloc(MaxDataSize);
 
     printf("Server listening on port %d\n", Port);
 
@@ -1195,6 +1214,11 @@ void server()
         }
 #endif
     }
+
+    free(prevInstrumentsData);
+    free(prevAutopilotData);
+    free(prevRadioData);
+    free(prevLightsData);
 
     closesocket(sockfd);
     printf("Server stopped\n");
