@@ -117,7 +117,6 @@ HANDLE hSimConnect = NULL;
 extern const char* versionString;
 extern const char* SimVarDefs[][2];
 extern WriteEvent WriteEvents[];
-double at = -1, tcas = -1, xpdr = -1;
 
 SimVars simVars;
 double *varsStart;
@@ -130,7 +129,7 @@ long autopilotDataSize = (long)((LONG_PTR)(&simVars.autothrottleActive) + (long)
 long radioDataSize = (long)((LONG_PTR)(&simVars.transponderCode) + (long)sizeof(double) - (LONG_PTR)&simVars);
 long lightsDataSize = (long)((LONG_PTR)(&simVars.apuPercentRpm) + (long)sizeof(double) - (LONG_PTR)&simVars);
 
-char deltaData[MaxDataSize];
+char* deltaData;
 long deltaSize;
 char* prevInstrumentsData;
 char* prevAutopilotData;
@@ -518,23 +517,12 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 }
             }
 
-            // For testing only - Leave commented out
+            //// For testing only - Leave commented out
             //if (displayDelay > 0) {
             //    displayDelay--;
             //}
             //else {
             //    //printf("Aircraft: %s   Cruise Speed: %f\n", simVars.aircraft, simVars.cruiseSpeed);
-            //    // Extra debug code
-            //    if (at != simVars.autothrottleActive || tcas != simVars.tcasState || xpdr != simVars.transponderState) {
-            //        time_t now;
-            //        time(&now);
-            //        printf("at: %f  tcas: %f  xpdr: %f  %s", simVars.autothrottleActive, simVars.tcasState,
-            //            simVars.transponderState, asctime(localtime(&now)));
-            //        fflush(stdout);
-            //        at = simVars.autothrottleActive;
-            //        tcas = simVars.tcasState;
-            //        xpdr = simVars.transponderState;
-            //    }
             //    displayDelay = 60;
             //}
 
@@ -762,7 +750,7 @@ void addDeltaString(long offset, char *newVal)
 /// Send the full set of data if this a new connection or we
 /// don't want to use deltas.
 /// </summary>
-void sendFull(char** prevSimVars, long dataSize)
+void sendFull(char* prevSimVars, long dataSize)
 {
     bytes = sendto(sockfd, (char*)&simVars, dataSize, 0, (SOCKADDR*)&senderAddr, addrSize);
 #ifdef SHOW_NETWORK_USAGE
@@ -770,7 +758,7 @@ void sendFull(char** prevSimVars, long dataSize)
 #endif
 
     // Update prev data
-    memcpy(*prevSimVars, &simVars, dataSize);
+    memcpy(prevSimVars, &simVars, dataSize);
 }
 
 /// <summary>
@@ -778,7 +766,7 @@ void sendFull(char** prevSimVars, long dataSize)
 /// the delta, i.e. data that has changed since we last sent it.
 /// This should reduce network bandwidth usage hugely.
 /// </summary>
-void sendDelta(char** prevSimVars, long dataSize)
+void sendDelta(char* prevSimVars, long dataSize)
 {
     // Initialise delta data
     deltaSize = 0;
@@ -793,13 +781,14 @@ void sendDelta(char** prevSimVars, long dataSize)
             break;
         }
 
-        char* oldVarPtr = *prevSimVars + offset;
+        char* oldVarPtr = prevSimVars + offset;
         char* newVarPtr = (char*)&simVars + offset;
 
         if (_strnicmp(SimVarDefs[i][1], "string", 6) == 0) {
             // Has string changed?
             if (strncmp(oldVarPtr, newVarPtr, 32) != 0) {
                 addDeltaString(offset, newVarPtr);
+                memcpy(oldVarPtr, newVarPtr, 32);
             }
 
             offset += 32;
@@ -809,13 +798,8 @@ void sendDelta(char** prevSimVars, long dataSize)
             double* oldVar = (double*)oldVarPtr;
             double* newVar = (double*)newVarPtr;
             if (*oldVar != *newVar) {
-                // Debug code
-                //int offnum = offset / 8;
-                //if (offnum == 59 || offnum == 60) {
-                //    printf("offset: %d  old: %f  new: %f\n", offnum, *oldVar, *newVar);
-                //    fflush(stdout);
-                //}
                 addDeltaDouble(offset, *newVar);
+                memcpy(oldVarPtr, newVarPtr, sizeof(double));
             }
 
             offset += 8;
@@ -829,7 +813,7 @@ void sendDelta(char** prevSimVars, long dataSize)
 
     if (deltaSize < dataSize) {
         // Send delta data
-        bytes = sendto(sockfd, (char*)&deltaData, deltaSize, 0, (SOCKADDR*)&senderAddr, addrSize);
+        bytes = sendto(sockfd, (char*)deltaData, deltaSize, 0, (SOCKADDR*)&senderAddr, addrSize);
     }
     else {
         // Send full data
@@ -838,9 +822,6 @@ void sendDelta(char** prevSimVars, long dataSize)
 #ifdef SHOW_NETWORK_USAGE
     networkOut += bytes;
 #endif
-
-    // Update prev data
-    memcpy(*prevSimVars, &simVars, dataSize);
 }
 
 /// <summary>
@@ -1076,10 +1057,10 @@ void processRequest()
                 printf("Instrument panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
                 active = 1;
             }
-            sendFull(&prevInstrumentsData, instrumentsDataSize);
+            sendFull(prevInstrumentsData, instrumentsDataSize);
         }
         else {
-            sendDelta(&prevInstrumentsData, instrumentsDataSize);
+            sendDelta(prevInstrumentsData, instrumentsDataSize);
         }
     }
     else if (request.requestedSize == autopilotDataSize) {
@@ -1089,10 +1070,10 @@ void processRequest()
                 printf("Autopilot panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
                 autopilotPanelConnected = true;
             }
-            sendFull(&prevAutopilotData, autopilotDataSize);
+            sendFull(prevAutopilotData, autopilotDataSize);
         }
         else {
-            sendDelta(&prevAutopilotData, autopilotDataSize);
+            sendDelta(prevAutopilotData, autopilotDataSize);
         }
     }
     else if (request.requestedSize == radioDataSize) {
@@ -1102,10 +1083,10 @@ void processRequest()
                 printf("Radio panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
                 radioPanelConnected = true;
             }
-            sendFull(&prevRadioData, radioDataSize);
+            sendFull(prevRadioData, radioDataSize);
         }
         else {
-            sendDelta(&prevRadioData, radioDataSize);
+            sendDelta(prevRadioData, radioDataSize);
         }
     }
     else if (request.requestedSize == lightsDataSize) {
@@ -1115,10 +1096,10 @@ void processRequest()
                 printf("Power/Lights panel connected from %s\n", inet_ntoa(senderAddr.sin_addr));
                 lightsPanelConnected = true;
             }
-            sendFull(&prevLightsData, lightsDataSize);
+            sendFull(prevLightsData, lightsDataSize);
         }
         else {
-            sendDelta(&prevLightsData, lightsDataSize);
+            sendDelta(prevLightsData, lightsDataSize);
         }
     }
     else {
@@ -1160,6 +1141,7 @@ void server()
         exit(1);
     }
 
+    deltaData = (char*)malloc(MaxDataSize);
     prevInstrumentsData = (char*)malloc(MaxDataSize);
     prevAutopilotData = (char*)malloc(MaxDataSize);
     prevRadioData = (char*)malloc(MaxDataSize);
@@ -1215,6 +1197,7 @@ void server()
 #endif
     }
 
+    free(deltaData);
     free(prevInstrumentsData);
     free(prevAutopilotData);
     free(prevRadioData);
