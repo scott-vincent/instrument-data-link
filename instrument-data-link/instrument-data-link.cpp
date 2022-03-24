@@ -978,7 +978,7 @@ void processRequest()
 
         //// For testing only - Leave commented out
         //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
-        //    request.writeData.eventId = A32NX_FCU_SPD_PULL;
+        //    request.writeData.eventId = KEY_ADF_STBY_SET;
         //    request.writeData.value = 1;
         //    printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
         //}
