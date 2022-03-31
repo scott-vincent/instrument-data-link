@@ -113,6 +113,9 @@ bool completedTakeOff = false;
 bool hasFlown = false;
 int onStandState = 0;
 double skytrackState = 0;
+int lastSoftkey = 0;
+int lastG1000Key = 0;
+time_t lastG1000Press = 0;
 HANDLE hSimConnect = NULL;
 extern const char* versionString;
 extern const char* SimVarDefs[][2];
@@ -875,24 +878,24 @@ EVENT_ID getCustomEvent(int eventNum)
                     }
                 }
                 else if (simVars.pushbackState < 3) {
-                    // Pushing back
-                    return EVENT_DOORS_TO_AUTO;
+                // Pushing back
+                return EVENT_DOORS_TO_AUTO;
                 }
                 else if (initiatedPushback) {
-                    // Completed pushback
-                    return EVENT_SEATS_FOR_TAKEOFF;
+                // Completed pushback
+                return EVENT_SEATS_FOR_TAKEOFF;
                 }
                 else if (simVars.parkingBrakeOn) {
-                    // Still on stand
-                    onStandState++;
-                    switch (onStandState) {
-                        case 1:
-                            return EVENT_DOORS_FOR_BOARDING;
-                        case 2:
-                            return EVENT_WELCOME_ON_BOARD;
-                        case 3:
-                            return EVENT_BOARDING_COMPLETE;
-                    }
+                // Still on stand
+                onStandState++;
+                switch (onStandState) {
+                case 1:
+                    return EVENT_DOORS_FOR_BOARDING;
+                case 2:
+                    return EVENT_WELCOME_ON_BOARD;
+                case 3:
+                    return EVENT_BOARDING_COMPLETE;
+                }
                 }
                 return EVENT_NONE;
             case TAKEOFF:
@@ -917,55 +920,102 @@ EVENT_ID getCustomEvent(int eventNum)
     case 2:
         // Event button 2 pressed
         switch (phase) {
-            case GROUND:
-                if (completedTakeOff) {
-                    // Landed
-                    if (simVars.parkingBrakeOn) {
-                        // Arrived at stand
-                        printf("Reset flight (Captain goodbye)\n");
-                        fflush(stdout);
-                        completedTakeOff = false;
-                        return EVENT_DISEMBARK;
-                    }
-                    else {
-                        // Taxi in
-                        return EVENT_REMAIN_SEATED;
-                    }
+        case GROUND:
+            if (completedTakeOff) {
+                // Landed
+                if (simVars.parkingBrakeOn) {
+                    // Arrived at stand
+                    printf("Reset flight (Captain goodbye)\n");
+                    fflush(stdout);
+                    completedTakeOff = false;
+                    return EVENT_DISEMBARK;
                 }
                 else {
-                    return simVars.pushbackState < 3 ? EVENT_PUSHBACK_STOP : EVENT_PUSHBACK_START;
+                    // Taxi in
+                    return EVENT_REMAIN_SEATED;
                 }
-            case TAKEOFF:
+            }
+            else {
+                return simVars.pushbackState < 3 ? EVENT_PUSHBACK_STOP : EVENT_PUSHBACK_START;
+            }
+        case TAKEOFF:
+            return EVENT_NONE;
+        case CLIMB:
+            if (simVars.seatBeltsSwitch == 1) {
+                return EVENT_TURBULENCE;
+            }
+            else {
                 return EVENT_NONE;
-            case CLIMB:
-                if (simVars.seatBeltsSwitch == 1) {
-                    return EVENT_TURBULENCE;
-                }
-                else {
-                    return EVENT_NONE;
-                }
-            case CRUISE:
-                if (simVars.seatBeltsSwitch == 1) {
-                    return EVENT_TURBULENCE;
-                }
-                else {
-                    return EVENT_REACHED_CRUISE;
-                }
-            case DESCENT:
-                if (simVars.seatBeltsSwitch == 1) {
-                    return EVENT_TURBULENCE;
-                }
-                else {
-                    return EVENT_REACHED_TOD;
-                }
-            case APPROACH:
-                return EVENT_FINAL_DESCENT;
-            case GO_AROUND:
-                return EVENT_GO_AROUND;
+            }
+        case CRUISE:
+            if (simVars.seatBeltsSwitch == 1) {
+                return EVENT_TURBULENCE;
+            }
+            else {
+                return EVENT_REACHED_CRUISE;
+            }
+        case DESCENT:
+            if (simVars.seatBeltsSwitch == 1) {
+                return EVENT_TURBULENCE;
+            }
+            else {
+                return EVENT_REACHED_TOD;
+            }
+        case APPROACH:
+            return EVENT_FINAL_DESCENT;
+        case GO_AROUND:
+            return EVENT_GO_AROUND;
         }
     }
 
     return EVENT_NONE;
+}
+
+void processG1000Events()
+{
+    time_t now;
+    time(&now);
+    if (now - lastG1000Press > 5) {
+        // Timeout the previous press
+        lastSoftkey = 0;
+    }
+
+    if (request.writeData.eventId >= KEY_G1000_PFD_SOFTKEY_1 && request.writeData.eventId <= KEY_G1000_PFD_SOFTKEY_12) {
+        if (lastSoftkey == KEY_G1000_PFD_SOFTKEY_11 && request.writeData.eventId == KEY_G1000_PFD_SOFTKEY_11 && (lastG1000Key == KEY_G1000_MFD_RANGE_INC || lastG1000Key == KEY_G1000_MFD_RANGE_DEC)) {
+            // NRST -> Enter + DirectTo
+            SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_G1000_PFD_ENT, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+            request.writeData.eventId = KEY_G1000_PFD_DIRECTTO;
+        }
+        else if (lastSoftkey == KEY_G1000_PFD_DIRECTTO) {
+            if (request.writeData.eventId == KEY_G1000_PFD_SOFTKEY_11) {
+                // NRST -> Enter (after DirectTo)
+                request.writeData.eventId = KEY_G1000_PFD_ENT;
+            }
+            else {
+                // Cancel DirectTo (back to NRST)
+                SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_G1000_PFD_DIRECTTO, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                request.writeData.eventId = KEY_G1000_PFD_SOFTKEY_11;
+            }
+        }
+        lastSoftkey = request.writeData.eventId;
+        lastG1000Key = request.writeData.eventId;
+    }
+    else if (request.writeData.eventId == KEY_G1000_MFD_RANGE_INC) {
+        lastG1000Key = request.writeData.eventId;
+        if (lastSoftkey == KEY_G1000_PFD_SOFTKEY_11) {
+            // RANGE_INC -> FMS_DEC
+            request.writeData.eventId = KEY_G1000_PFD_FMS_DEC;
+        }
+    }
+    else if (request.writeData.eventId == KEY_G1000_MFD_RANGE_DEC) {
+        lastG1000Key = request.writeData.eventId;
+        if (lastSoftkey == KEY_G1000_PFD_SOFTKEY_11) {
+            // RANGE_DEC -> FMS_INC
+            request.writeData.eventId = KEY_G1000_PFD_FMS_INC;
+        }
+    }
+
+    time(&lastG1000Press);
 }
 
 void processRequest()
@@ -978,7 +1028,7 @@ void processRequest()
 
         //// For testing only - Leave commented out
         //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
-        //    request.writeData.eventId = KEY_ADF_STBY_SET;
+        //    request.writeData.eventId = KEY_G1000_PFD_SOFTKEY_4;
         //    request.writeData.value = 1;
         //    printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
         //}
@@ -1028,6 +1078,10 @@ void processRequest()
         else if (request.writeData.eventId == KEY_SKYTRACK_STATE) {
             skytrackState = request.writeData.value;
             return;
+        }
+
+        if (request.writeData.eventId >= KEY_G1000_PFD_SOFTKEY_1 && request.writeData.eventId <= KEY_G1000_END) {
+            processG1000Events();
         }
 
         if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
