@@ -450,7 +450,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.exhaustGasTemp = simVars.jbEngineEgt;
                 simVars.engineFuelFlow = simVars.jbEngineFuelFlow;
             }
-            else if (strncmp(simVars.aircraft, "Boeing", 6) == 0) {
+            else if (strncmp(simVars.aircraft, "Salty", 5) == 0) {
                 // Map Salty 747 vars to real vars
                 simVars.autopilotAltitude = simVars.autopilotAltitude3;
 
