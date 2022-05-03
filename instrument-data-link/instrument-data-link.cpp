@@ -1,6 +1,6 @@
 /*
  * Flight Simulator Instrument Data Link
- * Copyright (c) 2021 Scott Vincent
+ * Copyright (c) 2022 Scott Vincent
  */
 
 #include <windows.h>
@@ -29,7 +29,7 @@ long networkOut;
 #endif
 
 // Some SimConnect events don't work with certain aircraft
-// so use vJoy to simulate joystick button preses instead.
+// so use vJoy to simulate joystick button presses instead.
 // To use vJoy you must install the device driver from here:
 //    http://vjoystick.sourceforge.net/site/index.php/download-a-install/download
 //
@@ -878,24 +878,24 @@ EVENT_ID getCustomEvent(int eventNum)
                     }
                 }
                 else if (simVars.pushbackState < 3) {
-                // Pushing back
-                return EVENT_DOORS_TO_AUTO;
+                    // Pushing back
+                    return EVENT_DOORS_TO_AUTO;
                 }
                 else if (initiatedPushback) {
-                // Completed pushback
-                return EVENT_SEATS_FOR_TAKEOFF;
+                    // Completed pushback
+                    return EVENT_SEATS_FOR_TAKEOFF;
                 }
                 else if (simVars.parkingBrakeOn) {
-                // Still on stand
-                onStandState++;
-                switch (onStandState) {
-                case 1:
-                    return EVENT_DOORS_FOR_BOARDING;
-                case 2:
-                    return EVENT_WELCOME_ON_BOARD;
-                case 3:
-                    return EVENT_BOARDING_COMPLETE;
-                }
+                    // Still on stand
+                    onStandState++;
+                    switch (onStandState) {
+                    case 1:
+                        return EVENT_DOORS_FOR_BOARDING;
+                    case 2:
+                        return EVENT_WELCOME_ON_BOARD;
+                    case 3:
+                        return EVENT_BOARDING_COMPLETE;
+                    }
                 }
                 return EVENT_NONE;
             case TAKEOFF:
@@ -907,7 +907,7 @@ EVENT_ID getCustomEvent(int eventNum)
             case DESCENT:
                 return EVENT_NONE;
             case APPROACH:
-                if (simVars.altAltitude > 5000) {
+                if (simVars.altAboveGround > 4000) {
                     return EVENT_LANDING_PREPARE_CABIN;
                 }
                 else {
