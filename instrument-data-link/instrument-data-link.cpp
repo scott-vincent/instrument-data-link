@@ -962,7 +962,9 @@ EVENT_ID getCustomEvent(int eventNum)
                 return EVENT_REACHED_TOD;
             }
         case APPROACH:
-            return EVENT_FINAL_DESCENT;
+            if (simVars.altAboveGround > 4000) {
+                return EVENT_FINAL_DESCENT;
+            }
         case GO_AROUND:
             return EVENT_GO_AROUND;
         }
