@@ -10,7 +10,7 @@
 #include "simvarDefs.h"
 #include "SimConnect.h"
 
-// Data will be served on this port
+ // Data will be served on this port
 const int Port = 52020;
 
 // Change the next line to false if you always want to send
@@ -48,6 +48,23 @@ void vJoyButtonPress(int button);
 int vJoyDeviceId = 1;
 bool vJoyInitialised = false;
 int vJoyConfiguredButtons;
+int vJoyAxisValue = -1;
+#endif
+
+// Comment the following line out if you don't want to reduce rudder sensitivity
+#define RUDDER_SENSITIVITY
+
+#ifdef RUDDER_SENSITIVITY
+#include <Mmsystem.h>
+#include <joystickapi.h>
+
+void joystickInit();
+void joystickRefresh();
+
+int joystickId = -1;
+int joystickRetry = 5;
+JOYINFOEX joyInfo;
+double rudderSensitivity = 1;
 #endif
 
 // SimConnect doesn't currently support reading local (lvar)
@@ -89,9 +106,14 @@ const char JETBRIDGE_AUTOTHRUST_MODE[] = "L:A32NX_AUTOTHRUST_MODE, enum";
 const char JETBRIDGE_AUTOBRAKE[] = "L:A32NX_AUTOBRAKES_ARMED_MODE, bool";
 const char JETBRIDGE_LEFT_BRAKEPEDAL[] = "L:A32NX_LEFT_BRAKE_PEDAL_INPUT, percent";
 const char JETBRIDGE_RIGHT_BRAKEPEDAL[] = "L:A32NX_RIGHT_BRAKE_PEDAL_INPUT, percent";
+const char JETBRIDGE_RUDDER_PEDAL_POS[] = "L:A32NX_RUDDER_PEDAL_POSITION, number";
 const char JETBRIDGE_ENGINE_EGT[] = "L:A32NX_ENGINE_EGT:1, number";
 const char JETBRIDGE_ENGINE_FUEL_FLOW[] = "L:A32NX_ENGINE_FF:1, number";
 const char JETBRIDGE_FLAPS_INDEX[] = "L:A32NX_FLAPS_HANDLE_INDEX, number";
+const char JETBRIDGE_SWS_TANK_SELECTOR_1[] = "L:SWS_Kodiak_TankSelector_1, bool";
+const char JETBRIDGE_SWS_TANK_SELECTOR_2[] = "L:SWS_Kodiak_TankSelector_2, bool";
+const char JETBRIDGE_SWS_LANDING_LIGHT[] = "L:SWS_LIGHTING_Switch_Light_Landing, number";
+const char JETBRIDGE_SPOILERS_HANDLE_POS[] = "L:A32NX_SPOILERS_HANDLE_POSITION, number";
 
 jetbridge::Client* jetbridgeClient = 0;
 #endif
@@ -113,6 +135,10 @@ bool completedTakeOff = false;
 bool hasFlown = false;
 int onStandState = 0;
 double skytrackState = 0;
+bool isA320 = false;
+bool is747 = false;
+bool isAirliner = false;
+double lastHeading = 0;
 int lastSoftkey = 0;
 int lastG1000Key = 0;
 time_t lastG1000Press = 0;
@@ -265,8 +291,14 @@ void updateVarFromJetbridge(const char* data)
     else if (strncmp(&data[1], JETBRIDGE_LEFT_BRAKEPEDAL, sizeof(JETBRIDGE_LEFT_BRAKEPEDAL) - 1) == 0) {
         simVars.jbLeftBrakePedal = atof(&data[sizeof(JETBRIDGE_LEFT_BRAKEPEDAL) + 1]);
     }
+    else if (strncmp(&data[1], JETBRIDGE_SPOILERS_HANDLE_POS, sizeof(JETBRIDGE_SPOILERS_HANDLE_POS) - 1) == 0) {
+        simVars.jbSpoilersHandlePos = atof(&data[sizeof(JETBRIDGE_SPOILERS_HANDLE_POS) + 1]);
+    }
     else if (strncmp(&data[1], JETBRIDGE_RIGHT_BRAKEPEDAL, sizeof(JETBRIDGE_RIGHT_BRAKEPEDAL) - 1) == 0) {
         simVars.jbRightBrakePedal = atof(&data[sizeof(JETBRIDGE_RIGHT_BRAKEPEDAL) + 1]);
+    }
+    else if (strncmp(&data[1], JETBRIDGE_RUDDER_PEDAL_POS, sizeof(JETBRIDGE_RUDDER_PEDAL_POS) - 1) == 0) {
+        simVars.jbRudderPedalPos = atof(&data[sizeof(JETBRIDGE_RUDDER_PEDAL_POS) + 1]);
     }
     else if (strncmp(&data[1], JETBRIDGE_ENGINE_EGT, sizeof(JETBRIDGE_ENGINE_EGT) - 1) == 0) {
         simVars.jbEngineEgt = atof(&data[sizeof(JETBRIDGE_ENGINE_EGT) + 1]);
@@ -278,29 +310,41 @@ void updateVarFromJetbridge(const char* data)
 
 bool jetbridgeButtonPress(int eventId, double value)
 {
-    if (strncmp(simVars.aircraft, "FBW", 3) != 0 && strncmp(simVars.aircraft, "Airbus A320", 11) != 0) {
-        return false;
+    if (isA320) {
+        switch (eventId) {
+        case KEY_APU_OFF_SWITCH:
+            writeJetbridgeVar(JETBRIDGE_APU_MASTER_SW, value);
+            return true;
+        case KEY_APU_STARTER:
+            writeJetbridgeVar(JETBRIDGE_APU_START, value);
+            return true;
+        case KEY_BLEED_AIR_SOURCE_CONTROL_SET:
+            writeJetbridgeVar(JETBRIDGE_APU_BLEED, value);
+            return true;
+        case KEY_ELEC_BAT1:
+            writeJetbridgeVar(JETBRIDGE_ELEC_BAT1, value);
+            return true;
+        case KEY_ELEC_BAT2:
+            writeJetbridgeVar(JETBRIDGE_ELEC_BAT2, value);
+            return true;
+        case KEY_AUTOBRAKE:
+            writeJetbridgeVar(JETBRIDGE_AUTOBRAKE, value);
+            return true;
+        }
     }
-
-    switch (eventId) {
-    case KEY_APU_OFF_SWITCH:
-        writeJetbridgeVar(JETBRIDGE_APU_MASTER_SW, value);
-        return true;
-    case KEY_APU_STARTER:
-        writeJetbridgeVar(JETBRIDGE_APU_START, value);
-        return true;
-    case KEY_BLEED_AIR_SOURCE_CONTROL_SET:
-        writeJetbridgeVar(JETBRIDGE_APU_BLEED, value);
-        return true;
-    case KEY_ELEC_BAT1:
-        writeJetbridgeVar(JETBRIDGE_ELEC_BAT1, value);
-        return true;
-    case KEY_ELEC_BAT2:
-        writeJetbridgeVar(JETBRIDGE_ELEC_BAT2, value);
-        return true;
-    case KEY_AUTOBRAKE:
-        writeJetbridgeVar(JETBRIDGE_AUTOBRAKE, value);
-        return true;
+    else if (strncmp(simVars.aircraft, "Kodiak 100", 10) == 0) {
+        switch (eventId) {
+        case KEY_TANK_SELECT_1:
+            writeJetbridgeVar(JETBRIDGE_SWS_TANK_SELECTOR_1, value);
+            return true;
+        case KEY_TANK_SELECT_2:
+            writeJetbridgeVar(JETBRIDGE_SWS_TANK_SELECTOR_2, value);
+            return true;
+        case KEY_LANDING_LIGHTS_SET:
+            // 0 = off, 2 = on
+            writeJetbridgeVar(JETBRIDGE_SWS_LANDING_LIGHT, value * 2);
+            return true;
+        }
     }
 
     return false;
@@ -313,7 +357,7 @@ void pollJetbridge()
 
     while (!quit)
     {
-        if (simVars.connected && (strncmp(simVars.aircraft, "FBW", 3) == 0 || strncmp(simVars.aircraft, "Airbus A320", 11) == 0)) {
+        if (simVars.connected && isA320) {
             readJetbridgeVar(JETBRIDGE_APU_MASTER_SW);
             readJetbridgeVar(JETBRIDGE_APU_START);
             readJetbridgeVar(JETBRIDGE_APU_START_AVAIL);
@@ -322,6 +366,7 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_ELEC_BAT2);
             readJetbridgeVar(JETBRIDGE_FLAPS_INDEX);
             readJetbridgeVar(JETBRIDGE_PARK_BRAKE_POS);
+            readJetbridgeVar(JETBRIDGE_SPOILERS_HANDLE_POS);
             readJetbridgeVar(JETBRIDGE_XPNDR_MODE);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_1);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_2);
@@ -338,6 +383,7 @@ void pollJetbridge()
             readJetbridgeVar(JETBRIDGE_AUTOBRAKE);
             readJetbridgeVar(JETBRIDGE_LEFT_BRAKEPEDAL);
             readJetbridgeVar(JETBRIDGE_RIGHT_BRAKEPEDAL);
+            readJetbridgeVar(JETBRIDGE_RUDDER_PEDAL_POS);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_HDG);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_VS);
             readJetbridgeVar(JETBRIDGE_AUTOPILOT_FPA);
@@ -408,8 +454,30 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
 
             // Populate internal variables
             simVars.skytrackState = skytrackState;
+            isA320 = false;
+            is747 = false;
+            isAirliner = false;
 
-            if (simVars.connected && (strncmp(simVars.aircraft, "FBW", 3) == 0 || strncmp(simVars.aircraft, "Airbus A320", 11) == 0)) {
+            if (strncmp(simVars.aircraft, "FBW", 3) == 0 || strncmp(simVars.aircraft, "Airbus A320", 11) == 0) {
+                isA320 = true;
+                isAirliner = true;
+            }
+            else if (strncmp(simVars.aircraft, "Salty", 5) == 0 || strncmp(simVars.aircraft, "Boeing 747-8", 12) == 0) {
+                is747 = true;
+                isAirliner = true;
+            }
+            else if (strncmp(simVars.aircraft, "Airbus", 6) == 0 || strncmp(simVars.aircraft, "Boeing", 6) == 0) {
+                isAirliner = true;
+            }
+
+            if (abs(simVars.hiHeading - lastHeading) > 10) {
+                // Fix gyro if aircraft heading changes abruptly
+                SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_HEADING_GYRO_SET, 1, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                printf("Gyro adjusted\n");
+            }
+            lastHeading = simVars.hiHeading;
+
+            if (simVars.connected && isA320) {
                 // Map A32NX vars to real vars
                 simVars.apuStartSwitch = simVars.jbApuStart;
                 if (simVars.jbApuStartAvail) {
@@ -420,7 +488,9 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 }
                 simVars.tfFlapsIndex = simVars.jbFlapsIndex;
                 simVars.parkingBrakeOn = simVars.jbParkBrakePos;
+                simVars.tfSpoilersPosition = simVars.jbSpoilersHandlePos;
                 simVars.brakePedal = (simVars.jbLeftBrakePedal + simVars.jbRightBrakePedal) / 2.0;
+                simVars.rudderPosition = simVars.jbRudderPedalPos / 100.0;
                 simVars.autopilotEngaged = (simVars.jbAutopilot1 == 0 && simVars.jbAutopilot2 == 0) ? 0 : 1;
                 if (simVars.jbAutothrust == 0) {
                     simVars.autothrottleActive = 0;
@@ -450,7 +520,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.exhaustGasTemp = simVars.jbEngineEgt;
                 simVars.engineFuelFlow = simVars.jbEngineFuelFlow;
             }
-            else if (strncmp(simVars.aircraft, "Salty", 5) == 0 || strncmp(simVars.aircraft, "Boeing 747-8", 12) == 0) {
+            else if (is747) {
                 // Map Salty 747 vars to real vars
                 simVars.autopilotAltitude = simVars.autopilotAltitude3;
 
@@ -1006,14 +1076,14 @@ void processG1000Events()
         lastG1000Key = request.writeData.eventId;
         if (lastSoftkey == KEY_G1000_PFD_SOFTKEY_11) {
             // RANGE_INC -> FMS_DEC
-            request.writeData.eventId = KEY_G1000_PFD_FMS_DEC;
+            request.writeData.eventId = KEY_G1000_PFD_LOWER_DEC;
         }
     }
     else if (request.writeData.eventId == KEY_G1000_MFD_RANGE_DEC) {
         lastG1000Key = request.writeData.eventId;
         if (lastSoftkey == KEY_G1000_PFD_SOFTKEY_11) {
             // RANGE_DEC -> FMS_INC
-            request.writeData.eventId = KEY_G1000_PFD_FMS_INC;
+            request.writeData.eventId = KEY_G1000_PFD_LOWER_INC;
         }
     }
 
@@ -1024,18 +1094,23 @@ void processRequest()
 {
     if (request.requestedSize == writeDataSize) {
          // This is a write
+        if (request.writeData.eventId == KEY_RUDDER_SENSITIVITY) {
+            rudderSensitivity = request.writeData.value;
+            return;
+        }
+
         if (!simVars.connected) {
             return;
         }
 
         //// For testing only - Leave commented out
         //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
-        //    request.writeData.eventId = KEY_G1000_PFD_SOFTKEY_4;
+        //    request.writeData.eventId = KEY_HEADING_GYRO_SET;
         //    request.writeData.value = 1;
         //    printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
         //}
         //else {
-        //    printf("Unintercepted event: %d = %f\n", request.writeData.eventId, request.writeData.value);
+        //    printf("Unintercepted event: %d (%d) = %f\n", request.writeData.eventId, KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE, request.writeData.value);
         //}
 
         if (request.writeData.eventId >= VJOY_BUTTONS && request.writeData.eventId <= VJOY_BUTTONS_END) {
@@ -1059,6 +1134,10 @@ void processRequest()
         // Process custom events
         if (request.writeData.eventId == KEY_CHECK_EVENT) {
             int eventNum = (int)(request.writeData.value);
+            // Ignore event 1 in GA aircraft (button used for Engine Primer instead)
+            if (eventNum == 1 && !isAirliner) {
+                return;
+            }
             EVENT_ID event = getCustomEvent(eventNum);
             sendto(sockfd, (char*)&event, sizeof(int), 0, (SOCKADDR*)&senderAddr, addrSize);
             if (event == EVENT_PUSHBACK_START || event == EVENT_PUSHBACK_STOP) {
@@ -1251,6 +1330,10 @@ void server()
             networkOut = 0;
         }
 #endif
+
+#ifdef RUDDER_SENSITIVITY
+        joystickRefresh();
+#endif
     }
 
     free(deltaData);
@@ -1311,16 +1394,36 @@ void vJoyInit()
             dataLinkConfiguredButtons, vJoyDeviceId, vJoyConfiguredButtons, VJOY_CONFIG_EXE);
     }
 
+#ifdef JOYSTICK_SENSITIVITY
+    // Make sure axis is configured for this joystick
+    if (!GetVJDAxisExist(vJoyDeviceId, HID_USAGE_RX)) {
+        printf("WARNING - Data link is trying to use vJoy axis RX but vJoy device %d does not have this axis configured. Run %s to configure this axis.\n",
+            vJoyDeviceId, VJOY_CONFIG_EXE);
+    }
+    else {
+        long min;
+        long max;
+        GetVJDAxisMin(vJoyDeviceId, HID_USAGE_RX, &min);
+        GetVJDAxisMax(vJoyDeviceId, HID_USAGE_RX, &max);
+
+        if (min != 0 || max != 32767) {
+            printf("WARNING - vJoy device %d axis %d should have min,max configured to 0,32767 but is has %d,%d. Run %s to configure this axis correctly.\n",
+                  vJoyDeviceId, HID_USAGE_RX, min, max, VJOY_CONFIG_EXE);
+        }
+    }
+#endif
+
     printf("Success - Acquired vJoy device %d\n", vJoyDeviceId);
 
     ResetButtons(vJoyDeviceId);
+    ResetVJD(vJoyDeviceId);
     vJoyInitialised = true;
 }
 
 void vJoyButtonPress(int eventId)
 {
     if (eventId == VJOY_BUTTONS || eventId == VJOY_BUTTONS_END) {
-        printf("Dummy vJoy button event VJOY_BUTTONS/VJOY_BUTTONS_END gnored\n");
+        printf("Dummy vJoy button event VJOY_BUTTONS/VJOY_BUTTONS_END ignored\n");
         return;
     }
 
@@ -1338,8 +1441,99 @@ void vJoyButtonPress(int eventId)
     }
 
     // Press and release joystick button
+    //printf("Press vJoy button %d\n", button);
     SetBtn(true, vJoyDeviceId, button);
-    Sleep(40);
+    Sleep(60);
     SetBtn(false, vJoyDeviceId, button);
 }
+
+void vJoySetAxis(int value) {
+    // Value is 0 - 65535 but needs remapping to 0 - 32767
+    int mappedValue = (value + 1) / 2;
+    if (mappedValue > 0) {
+        mappedValue--;
+    }
+
+    if (vJoyAxisValue != mappedValue) {
+        vJoyAxisValue = mappedValue;
+        SetAxis(vJoyAxisValue, vJoyDeviceId, HID_USAGE_RX);
+    }
+}
 #endif // vJoyFallback
+
+#ifdef RUDDER_SENSITIVITY
+void joystickInit()
+{
+    joyInfo.dwSize = sizeof(joyInfo);
+    joyInfo.dwFlags = JOY_RETURNU | JOY_RETURNX | JOY_RETURNY | JOY_RETURNZ;
+
+    for (joystickId = 0; joystickId < 16; joystickId++) {
+        MMRESULT res = joyGetPosEx(joystickId, &joyInfo);
+        if (res != JOYERR_NOERROR) {
+            continue;
+        }
+
+        // Rudder pedal axis will be centred (and throttles won't be)
+        if (joyInfo.dwUpos > 30000 && joyInfo.dwUpos < 36000 && (joyInfo.dwXpos != 32767 || joyInfo.dwYpos != 32767 || joyInfo.dwZpos != 32767)) {
+            break;
+        }
+
+        //printf("Joystick %d (%d, %d, %d, %d) does not have rudder pedal input\n", joystickId, joyInfo.dwUpos, joyInfo.dwXpos, joyInfo.dwYpos, joyInfo.dwZpos);
+    }
+
+    joyInfo.dwFlags = JOY_RETURNU;
+
+    if (joystickId < 16) {
+        printf("Rudder pedal input found on joystick %d\n", joystickId);
+    }
+    else {
+        if (joystickRetry > 0) {
+            joystickRetry--;
+            joystickId = -1;
+        }
+        else {
+            joystickId = 1;
+            printf("Defaulting to joystick %d for rudder pedal input\n", joystickId);
+        }
+    }
+}
+
+/// <summary>
+/// Reads the Rudder Pedal axis and sets vJoy axis 0 with reduced sensitivity.
+/// Sensitivity is reduced to one third until the extremes where it is linearly mapped back to the full value.
+/// To use: In FS2020, map vJoy axis 0 instead of the real rudder pedal axis.
+/// </summary>
+void joystickRefresh()
+{
+    if (joystickId < 0 || joystickId > 15) {
+        if (joystickId == -1) {
+            joystickInit();
+            if (!vJoyInitialised) {
+                vJoyInit();
+            }
+        }
+        return;
+    }
+
+    MMRESULT res = joyGetPosEx(joystickId, &joyInfo);
+    if (res != JOYERR_NOERROR) {
+        return;
+    }
+
+    const int centre = 32767;
+
+    int rudderPos = joyInfo.dwUpos;
+    if (rudderSensitivity > 1) {
+        // Reduce sensitivity
+        rudderPos = centre + ((rudderPos - centre) / rudderSensitivity);
+    }
+
+#ifdef vJoyFallback
+    // printf("rudder: %d adjusted to %d\n", joyInfo.dwUpos, rudderPos);
+    vJoySetAxis(rudderPos);
+#else
+    printf("rudder not adjusted as no vJoy\n");
+    joystickId = 16;
+#endif
+}
+#endif // RUDDER_SENSITIVTY
