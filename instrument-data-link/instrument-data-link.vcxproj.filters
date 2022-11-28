@@ -9,6 +9,8 @@
     <ClCompile Include="jetbridge\Protocol.cpp">
       <Filter>Jetbridge</Filter>
     </ClCompile>
+    <ClCompile Include="jetbridge.cpp" />
+    <ClCompile Include="vjoy.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="simvarDefs.h" />
@@ -18,6 +20,11 @@
     <ClInclude Include="jetbridge\Protocol.h">
       <Filter>Jetbridge</Filter>
     </ClInclude>
+    <ClInclude Include="LVars-A310.h" />
+    <ClInclude Include="LVars-A32NX.h" />
+    <ClInclude Include="LVars-Kodiak100.h" />
+    <ClInclude Include="jetbridge.h" />
+    <ClInclude Include="vjoy.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="C:\MSFS SDK\SimConnect SDK\VS\SimConnectClient-static.props" />

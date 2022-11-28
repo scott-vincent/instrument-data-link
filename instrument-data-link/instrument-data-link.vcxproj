@@ -177,14 +177,21 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="instrument-data-link.cpp" />
+    <ClCompile Include="jetbridge.cpp" />
     <ClCompile Include="jetbridge\Client.cpp" />
     <ClCompile Include="jetbridge\Protocol.cpp" />
     <ClCompile Include="simvarDefs.cpp" />
+    <ClCompile Include="vjoy.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="jetbridge.h" />
     <ClInclude Include="jetbridge\Client.h" />
     <ClInclude Include="jetbridge\Protocol.h" />
+    <ClInclude Include="LVars-A310.h" />
+    <ClInclude Include="LVars-A32NX.h" />
+    <ClInclude Include="LVars-Kodiak100.h" />
     <ClInclude Include="simvarDefs.h" />
+    <ClInclude Include="vjoy.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="C:\MSFS SDK\SimConnect SDK\VS\SimConnectClient-static.props" />
