@@ -150,11 +150,11 @@ void updateA310FromJetbridge(const char* data)
         simVars.jbManagedHeading = 1 - atof(&data[sizeof(A310_HEADING_MODE) + 1]);
     }
     else if (strncmp(&data[1], A310_PITCH_MODE, sizeof(A310_PITCH_MODE) - 1) == 0) {
-        // 8 = ALL OFF, 6 & 9 = Alt Hold, 2 & 4 = LVL/CH, 3 & 5 & 15 & 20 & 26 = PROFILE
+        // 7 & 8 = ALL OFF, 6 & 9 = Alt Hold, 2 & 4 = LVL/CH, 3 & 5 & 15 & 20 & 26 = PROFILE
         a310Vars.pitchMode = atof(&data[sizeof(A310_PITCH_MODE) + 1]);
         a310Vars.altHold = (a310Vars.pitchMode == 6 || a310Vars.pitchMode == 9);
         a310Vars.levelChange = (a310Vars.pitchMode == 2 || a310Vars.pitchMode == 4);
-        a310Vars.profile = (!a310Vars.altHold && !a310Vars.levelChange && a310Vars.pitchMode != 8);
+        a310Vars.profile = (!a310Vars.altHold && !a310Vars.levelChange && a310Vars.pitchMode != 7 && a310Vars.pitchMode != 8);
     }
     else if (strncmp(&data[1], A310_GEAR_HANDLE, sizeof(A310_GEAR_HANDLE) - 1) == 0) {
         a310Vars.gearHandle = atof(&data[sizeof(A310_GEAR_HANDLE) + 1]);
