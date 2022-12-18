@@ -256,11 +256,17 @@ void updateA320FromJetbridge(const char* data)
     else if (strncmp(&data[1], A32NX_RUDDER_PEDAL_POS, sizeof(A32NX_RUDDER_PEDAL_POS) - 1) == 0) {
         a320Vars.rudderPedalPos = atof(&data[sizeof(A32NX_RUDDER_PEDAL_POS) + 1]);
     }
-    else if (strncmp(&data[1], A32NX_ENGINE_EGT, sizeof(A32NX_ENGINE_EGT) - 1) == 0) {
-        a320Vars.engineEgt = atof(&data[sizeof(A32NX_ENGINE_EGT) + 1]);
+    else if (strncmp(&data[1], A32NX_ENGINE_EGT1, sizeof(A32NX_ENGINE_EGT1) - 1) == 0) {
+        a320Vars.engineEgt1 = atof(&data[sizeof(A32NX_ENGINE_EGT1) + 1]);
     }
-    else if (strncmp(&data[1], A32NX_ENGINE_FUEL_FLOW, sizeof(A32NX_ENGINE_FUEL_FLOW) - 1) == 0) {
-        a320Vars.engineFuelFlow = atof(&data[sizeof(A32NX_ENGINE_FUEL_FLOW) + 1]);
+    else if (strncmp(&data[1], A32NX_ENGINE_EGT2, sizeof(A32NX_ENGINE_EGT2) - 1) == 0) {
+        a320Vars.engineEgt2 = atof(&data[sizeof(A32NX_ENGINE_EGT2) + 1]);
+    }
+    else if (strncmp(&data[1], A32NX_ENGINE_FUEL_FLOW1, sizeof(A32NX_ENGINE_FUEL_FLOW1) - 1) == 0) {
+        a320Vars.engineFuelFlow1 = atof(&data[sizeof(A32NX_ENGINE_FUEL_FLOW1) + 1]);
+    }
+    else if (strncmp(&data[1], A32NX_ENGINE_FUEL_FLOW2, sizeof(A32NX_ENGINE_FUEL_FLOW2) - 1) == 0) {
+        a320Vars.engineFuelFlow2 = atof(&data[sizeof(A32NX_ENGINE_FUEL_FLOW2) + 1]);
     }
 }
 
@@ -539,8 +545,10 @@ void readA320Jetbridge()
     readJetbridgeVar(A32NX_AUTOPILOT_HDG);
     readJetbridgeVar(A32NX_AUTOPILOT_VS);
     readJetbridgeVar(A32NX_AUTOPILOT_FPA);
-    readJetbridgeVar(A32NX_ENGINE_EGT);
-    readJetbridgeVar(A32NX_ENGINE_FUEL_FLOW);
+    readJetbridgeVar(A32NX_ENGINE_EGT1);
+    readJetbridgeVar(A32NX_ENGINE_EGT2);
+    readJetbridgeVar(A32NX_ENGINE_FUEL_FLOW1);
+    readJetbridgeVar(A32NX_ENGINE_FUEL_FLOW2);
 }
 
 #endif  // jetbridgeFallback

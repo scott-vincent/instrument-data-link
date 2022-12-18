@@ -32,8 +32,10 @@ const char A32NX_AUTOBRAKE[] = "L:A32NX_AUTOBRAKES_ARMED_MODE, bool";
 const char A32NX_LEFT_BRAKEPEDAL[] = "L:A32NX_LEFT_BRAKE_PEDAL_INPUT, percent";
 const char A32NX_RIGHT_BRAKEPEDAL[] = "L:A32NX_RIGHT_BRAKE_PEDAL_INPUT, percent";
 const char A32NX_RUDDER_PEDAL_POS[] = "L:A32NX_RUDDER_PEDAL_POSITION, number";
-const char A32NX_ENGINE_EGT[] = "L:A32NX_ENGINE_EGT:1, number";
-const char A32NX_ENGINE_FUEL_FLOW[] = "L:A32NX_ENGINE_FF:1, number";
+const char A32NX_ENGINE_EGT1[] = "L:A32NX_ENGINE_EGT:1, number";
+const char A32NX_ENGINE_EGT2[] = "L:A32NX_ENGINE_EGT:2, number";
+const char A32NX_ENGINE_FUEL_FLOW1[] = "L:A32NX_ENGINE_FF:1, number";
+const char A32NX_ENGINE_FUEL_FLOW2[] = "L:A32NX_ENGINE_FF:2, number";
 const char A32NX_FLAPS_INDEX[] = "L:A32NX_FLAPS_HANDLE_INDEX, number";
 const char A32NX_SPOILERS_HANDLE_POS[] = "L:A32NX_SPOILERS_HANDLE_POSITION, number";
 
@@ -54,8 +56,10 @@ struct LVars_A320
     double leftBrakePedal = 0;
     double rightBrakePedal = 0;
     double rudderPedalPos = 0;
-    double engineEgt = 0;
-    double engineFuelFlow = 0;
+    double engineEgt1 = 0;
+    double engineEgt2 = 0;
+    double engineFuelFlow1 = 0;
+    double engineFuelFlow2 = 0;
 };
 
 #endif // _LVARS_A32NX_H_

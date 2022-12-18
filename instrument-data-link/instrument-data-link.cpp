@@ -75,6 +75,7 @@ double lastHeading = 0;
 int lastSoftkey = 0;
 int lastG1000Key = 0;
 time_t lastG1000Press = 0;
+int seatBeltsReplicateDelay = 0;
 LVars_A310 a310Vars;
 LVars_A320 a320Vars;
 HANDLE hSimConnect = NULL;
@@ -250,6 +251,14 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                     simVars.apuPercentRpm = 0;
                 }
                 simVars.suctionPressure = 5;
+                if (seatBeltsReplicateDelay > 0) {
+                    seatBeltsReplicateDelay--;
+                }
+                else if (simVars.seatBeltsSwitch != a310Vars.seatbeltsSwitch) {
+                    // Replicate lvar value back to standard SDK variable to make PACX work correctly
+                    SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE, 1, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                    seatBeltsReplicateDelay = 10;
+                }
                 simVars.seatBeltsSwitch = a310Vars.seatbeltsSwitch;
                 simVars.jbPitchTrim = a310Vars.pitchTrim1 + a310Vars.pitchTrim2;
                 simVars.autopilotAirspeed = a310Vars.autopilotAirspeed;
@@ -323,8 +332,10 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.autopilotApproachHold = simVars.jbLocMode;
                 simVars.autopilotGlideslopeHold = simVars.jbApprMode;
                 simVars.tfAutoBrake = simVars.jbAutobrake + 1;
-                simVars.exhaustGasTemp = a320Vars.engineEgt;
-                simVars.engineFuelFlow = a320Vars.engineFuelFlow;
+                simVars.exhaustGasTemp1 = a320Vars.engineEgt1;
+                simVars.exhaustGasTemp2 = a320Vars.engineEgt2;
+                simVars.engineFuelFlow1 = a320Vars.engineFuelFlow1;
+                simVars.engineFuelFlow2 = a320Vars.engineFuelFlow2;
             }
             else if (is747) {
                 // Map Salty 747 vars to real vars
