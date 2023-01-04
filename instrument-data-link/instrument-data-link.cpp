@@ -1,6 +1,6 @@
 /*
  * Flight Simulator Instrument Data Link
- * Copyright (c) 2022 Scott Vincent
+ * Copyright (c) 2023 Scott Vincent
  */
 
 #include <windows.h>
@@ -565,7 +565,7 @@ void cleanUp()
 
 int __cdecl _tmain(int argc, _TCHAR* argv[])
 {
-    printf("Instrument Data Link %s Copyright (c) 2022 Scott Vincent\n", versionString);
+    printf("Instrument Data Link %s Copyright (c) 2023 Scott Vincent\n", versionString);
 
     // Yield so server can start
     Sleep(100);
@@ -723,12 +723,11 @@ void sendDelta(char* prevSimVars, long dataSize)
 EVENT_ID getCustomEvent(int eventNum)
 {
     EVENT_ID event = EVENT_NONE;
+    bool isClimbing = simVars.vsiVerticalSpeed > 3;
+    bool isDescending = simVars.vsiVerticalSpeed < -3;
 
     FLIGHT_PHASE phase = GROUND;
     if (simVars.altAboveGround > 50) {
-        bool isClimbing = simVars.vsiVerticalSpeed > 3;
-        bool isDescending = simVars.vsiVerticalSpeed < -3;
-
         if (simVars.altAltitude < 10000) {
             if (!completedTakeOff) {
                 phase = TAKEOFF;
@@ -750,6 +749,7 @@ EVENT_ID getCustomEvent(int eventNum)
             phase = CRUISE;
         }
     }
+
     switch (eventNum) {
     case 1:
         // Event button 1 pressed
@@ -828,6 +828,11 @@ EVENT_ID getCustomEvent(int eventNum)
                 return simVars.pushbackState < 3 ? EVENT_PUSHBACK_STOP : EVENT_PUSHBACK_START;
             }
         case TAKEOFF:
+            // If not reached 10000ft but descending and button 2 pressed just assume short flight
+            if (!completedTakeOff && isDescending) {
+                completedTakeOff = true;
+                return EVENT_FINAL_DESCENT;
+            }
             return EVENT_NONE;
         case CLIMB:
             if (simVars.seatBeltsSwitch == 1) {

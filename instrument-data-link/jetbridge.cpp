@@ -39,6 +39,32 @@ void writeJetbridgeVar(const char* var, double val)
     jetbridgeClient->request(rpnCode);
 }
 
+void writeJetbridge_A32NX_CabinLights(double val)
+{
+    const char* rpnPotentiometer = "%f %d (>K:2:LIGHT_POTENTIOMETER_SET)";
+    const int OVERHEAD_INTEG_LIGHT = 86;
+    const int GLARESHIELD_INTEG_LIGHT = 84;
+    const int GLARESHIELD_LCD_LIGHT = 87;
+    const int FLOOD_LIGHT_CPT = 83;
+    const int FLOOD_LIGHT_FO = 76;
+    const int INTEG_LIGHT = 85;
+
+    char rpnCode[128];
+
+    sprintf(rpnCode, rpnPotentiometer, val, OVERHEAD_INTEG_LIGHT);
+    jetbridgeClient->request(rpnCode);
+    sprintf(rpnCode, rpnPotentiometer, val, GLARESHIELD_INTEG_LIGHT);
+    jetbridgeClient->request(rpnCode);
+    sprintf(rpnCode, rpnPotentiometer, val, GLARESHIELD_LCD_LIGHT);
+    jetbridgeClient->request(rpnCode);
+    sprintf(rpnCode, rpnPotentiometer, val, FLOOD_LIGHT_CPT);
+    jetbridgeClient->request(rpnCode);
+    sprintf(rpnCode, rpnPotentiometer, val, FLOOD_LIGHT_FO);
+    jetbridgeClient->request(rpnCode);
+    sprintf(rpnCode, rpnPotentiometer, val, INTEG_LIGHT);
+    jetbridgeClient->request(rpnCode);
+}
+
 void updateA310FromJetbridge(const char* data)
 {
     if (strncmp(&data[1], A310_APU_MASTER_SW, sizeof(A310_APU_MASTER_SW) - 1) == 0) {
@@ -453,6 +479,9 @@ bool jetbridgeA320ButtonPress(int eventId, double value)
     case KEY_XPNDR_STATE:
         // Set transponder to standby or auto
         writeJetbridgeVar(A32NX_XPNDR_MODE, value);
+        return true;
+    case KEY_CABIN_LIGHTS_SET:
+        writeJetbridge_A32NX_CabinLights(value);
         return true;
     }
 

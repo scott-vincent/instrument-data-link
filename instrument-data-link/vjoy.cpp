@@ -10,20 +10,26 @@ const char* VJOY_CONFIG_EXE = "C:\\Program Files\\vJoy\\x64\\vJoyConf.exe (Run a
 
 int vJoyDeviceId = 1;
 bool vJoyInitialised = false;
+int vJoyRetry = 0;
 int vJoyConfiguredButtons;
 int vJoyAxisValue = -1;
 
 void vJoyInit()
 {
-    if (vJoyInitialised) {
+    if (vJoyInitialised || vJoyRetry > 10) {
         return;
     }
 
-    printf("Initialising vJoy Interface...\n");
+    if (vJoyRetry == 0) {
+        printf("Initialising vJoy Interface...\n");
+    }
 
     if (!vJoyEnabled())
     {
-        printf("Failed - Make sure that vJoy is installed and enabled\n");
+        if (vJoyRetry == 10) {
+            printf("vJoy is not available so continuing without it\n");
+        }
+        vJoyRetry++;
         return;
     }
 
@@ -103,6 +109,10 @@ void vJoyButtonPress(int eventId)
 }
 
 void vJoySetAxis(int value) {
+    if (!vJoyInitialised) {
+        return;
+    }
+
     // Value is 0 - 65535 but needs remapping to 0 - 32767
     int mappedValue = (value + 1) / 2;
     if (mappedValue > 0) {
