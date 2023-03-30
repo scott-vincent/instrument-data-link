@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "simvarDefs.h"
 
-const char* versionString = "v1.7.4";
+const char* versionString = "v1.7.5";
 
 const char* SimVarDefs[][2] = {
     // Vars for Jetbridge (must come first)
@@ -54,6 +54,8 @@ const char* SimVarDefs[][2] = {
     { "Com Receive:2", "bool" },
     { "Adf Active Frequency:1", "khz" },
     { "Adf Standby Frequency:1", "khz" },
+    { "Com Volume:1", "percent" },
+    { "Com Volume:2", "percent" },
     { "Cabin Seatbelts Alert Switch", "bool" },
     { "Transponder State:1", "enum" },
     { "Transponder Code:1", "bco16" },
