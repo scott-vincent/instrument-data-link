@@ -34,7 +34,7 @@ long networkOut;
 #endif
 
 // Comment the following line out if you don't want to reduce rudder sensitivity
-#define RUDDER_SENSITIVITY
+//#define RUDDER_SENSITIVITY
 
 #ifdef RUDDER_SENSITIVITY
 #include <Mmsystem.h>
@@ -928,7 +928,9 @@ void processRequest()
                 writeJetbridgeVar(A310_ENG_IGNITION, value);
             }
             else {
+#ifdef RUDDER_SENSITIVITY
                 rudderSensitivity = request.writeData.value + 1;
+#endif
             }
             return;
         }
