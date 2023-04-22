@@ -506,6 +506,17 @@ bool jetbridgeK100ButtonPress(int eventId, double value)
     return false;
 }
 
+bool jetbridgeMiscButtonPress(int eventId, double value)
+{
+    switch (eventId) {
+    case KEY_XPNDR_STATE:
+        writeJetbridgeVar("A:TRANSPONDER STATE:1, enum", value);
+        return true;
+    }
+
+    return false;
+}
+
 void readA310Jetbridge()
 {
     readJetbridgeVar(A310_APU_MASTER_SW);

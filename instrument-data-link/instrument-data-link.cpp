@@ -939,15 +939,16 @@ void processRequest()
             return;
         }
 
-        //// For testing only - Leave commented out
-        //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
-        //    request.writeData.eventId = KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE;
-        //    request.writeData.value = 1;
-        //    printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
-        //}
-        //else {
-        //    printf("Unintercepted event: %d (%d) = %f\n", request.writeData.eventId, KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE, request.writeData.value);
-        //}
+        // For testing only - Leave commented out
+        if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
+            request.writeData.eventId = KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE;
+            request.writeData.value = 1;
+            printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
+            writeJetbridgeVar("A:TRANSPONDER STATE:1, enum", 4);
+        }
+        else {
+            printf("Unintercepted event: %d (%d) = %f\n", request.writeData.eventId, KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE, request.writeData.value);
+        }
 
         if (request.writeData.eventId >= VJOY_BUTTONS && request.writeData.eventId <= VJOY_BUTTONS_END) {
             // Override vJoy anti ice buttons for A310
@@ -984,6 +985,9 @@ void processRequest()
             return;
         }
         else if (isK100 && jetbridgeK100ButtonPress(request.writeData.eventId, request.writeData.value)) {
+            return;
+        }
+        else if (jetbridgeMiscButtonPress(request.writeData.eventId, request.writeData.value)) {
             return;
         }
 #endif
