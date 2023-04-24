@@ -479,6 +479,8 @@ bool jetbridgeA320ButtonPress(int eventId, double value)
     case KEY_XPNDR_STATE:
         // Set transponder to standby or auto
         writeJetbridgeVar(A32NX_XPNDR_MODE, value);
+        writeJetbridgeVar(A32NX_TCAS_MODE, value * 2);
+        writeJetbridgeVar(A32NX_TCAS_SWITCH, value * 2);
         return true;
     case KEY_CABIN_LIGHTS_SET:
         writeJetbridge_A32NX_CabinLights(value);
