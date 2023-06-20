@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "simvarDefs.h"
 
-const char* versionString = "v1.7.6";
+const char* versionString = "v1.7.7";
 
 const char* SimVarDefs[][2] = {
     // Vars for Jetbridge (must come first)
@@ -248,6 +248,7 @@ WriteEvent WriteEvents[] = {
     { KEY_TOGGLE_MASTER_BATTERY, "TOGGLE_MASTER_BATTERY" },
     { KEY_TOGGLE_MASTER_ALTERNATOR, "TOGGLE_MASTER_ALTERNATOR" },
     { KEY_TOGGLE_JETWAY, "TOGGLE_JETWAY" },
+    { KEY_TOGGLE_RAMPTRUCK, "TOGGLE_RAMPTRUCK" },
     { KEY_FUEL_PUMP, "FUEL_PUMP" },
     { KEY_CABIN_LIGHTS_SET, "CABIN_LIGHTS_SET" },
     { KEY_BEACON_LIGHTS_SET, "BEACON_LIGHTS_SET" },

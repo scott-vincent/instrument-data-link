@@ -61,7 +61,6 @@ enum FLIGHT_PHASE {
 
 bool quit = false;
 bool initiatedPushback = false;
-bool stoppedPushback = false;
 bool completedTakeOff = false;
 bool hasFlown = false;
 int onStandState = 0;
@@ -76,6 +75,7 @@ int lastSoftkey = 0;
 int lastG1000Key = 0;
 time_t lastG1000Press = 0;
 int seatBeltsReplicateDelay = 0;
+int fixedPushback = -1;
 LVars_A310 a310Vars;
 LVars_A320 a320Vars;
 HANDLE hSimConnect = NULL;
@@ -100,7 +100,6 @@ char* prevInstrumentsData;
 char* prevAutopilotData;
 char* prevRadioData;
 char* prevLightsData;
-time_t lastPushbackAdjust = 0;
 
 int active = -1;
 int bytes;
@@ -392,6 +391,27 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 printf("Reset flight (Battery off)\n");
                 fflush(stdout);
                 completedTakeOff = false;
+            }
+
+            if (fixedPushback != -1) {
+                // Pushback goes wrong sometimes (pushbackState == 4)
+                fixedPushback++;
+                if (fixedPushback == 20) {
+                    if (simVars.pushbackState < 4) {
+                        fixedPushback = -1;
+                    }
+                    else {
+                        printf("Extra start pushback\n");
+                        SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                    }
+                }
+                else if (fixedPushback == 40) {
+                    fixedPushback = -1;
+                    if (simVars.pushbackState < 3) {
+                        printf("Extra stop pushback\n");
+                        SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                    }
+                }
             }
 
             if (!simVars.connected || simVars.elecBat1 == 0) {
@@ -1015,12 +1035,11 @@ void processRequest()
                 request.writeData.eventId = KEY_TOGGLE_PUSHBACK;
                 if (event == EVENT_PUSHBACK_START) {
                     initiatedPushback = true;
-                    stoppedPushback = false;
+                    fixedPushback = -1;
                 }
                 else {
-                    stoppedPushback = true;
+                    fixedPushback = 0;
                 }
-                time(&lastPushbackAdjust);
             }
             else {
                 return;
@@ -1033,6 +1052,10 @@ void processRequest()
 
         if (request.writeData.eventId >= KEY_G1000_PFD_SOFTKEY_1 && request.writeData.eventId <= KEY_G1000_END) {
             processG1000Events();
+        }
+
+        if (request.writeData.eventId == KEY_TOGGLE_RAMPTRUCK) {
+            printf("Ramp truck requested\n");
         }
 
         if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
