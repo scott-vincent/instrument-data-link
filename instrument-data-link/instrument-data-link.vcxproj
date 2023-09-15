@@ -190,6 +190,7 @@
     <ClInclude Include="LVars-A310.h" />
     <ClInclude Include="LVars-A32NX.h" />
     <ClInclude Include="LVars-Kodiak100.h" />
+    <ClInclude Include="LVars-PA28.h" />
     <ClInclude Include="simvarDefs.h" />
     <ClInclude Include="vjoy.h" />
   </ItemGroup>

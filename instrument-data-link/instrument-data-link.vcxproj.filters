@@ -25,6 +25,7 @@
     <ClInclude Include="LVars-Kodiak100.h" />
     <ClInclude Include="jetbridge.h" />
     <ClInclude Include="vjoy.h" />
+    <ClInclude Include="LVars-PA28.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="C:\MSFS SDK\SimConnect SDK\VS\SimConnectClient-static.props" />

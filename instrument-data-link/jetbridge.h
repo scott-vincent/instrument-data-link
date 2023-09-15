@@ -28,6 +28,7 @@ void updateA320FromJetbridge(const char* data);
 bool jetbridgeA310ButtonPress(int eventId, double value);
 bool jetbridgeA320ButtonPress(int eventId, double value);
 bool jetbridgeK100ButtonPress(int eventId, double value);
+bool jetbridgePA28ButtonPress(int eventId, double value);
 bool jetbridgeMiscButtonPress(int eventId, double value);
 
 void readA310Jetbridge();

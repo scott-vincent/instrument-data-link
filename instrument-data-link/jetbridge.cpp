@@ -7,6 +7,7 @@
 #include "LVars-A310.h"
 #include "LVars-A32NX.h"
 #include "LVars-Kodiak100.h"
+#include "LVars-PA28.h"
 
 extern SimVars simVars;
 extern LVars_A310 a310Vars;
@@ -502,6 +503,21 @@ bool jetbridgeK100ButtonPress(int eventId, double value)
     case KEY_LANDING_LIGHTS_SET:
         // 0 = off, 2 = on
         writeJetbridgeVar(K100_LANDING_LIGHT, value * 2);
+        return true;
+    }
+
+    return false;
+}
+
+bool jetbridgePA28ButtonPress(int eventId, double value)
+{
+    switch (eventId) {
+    case KEY_XPNDR_STATE:
+        // Uses slightly different values
+        if (value == 4) {
+            value = 3;
+        }
+        writeJetbridgeVar(PA28_XPNDR_STATE, value);
         return true;
     }
 

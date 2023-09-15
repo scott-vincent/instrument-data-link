@@ -69,6 +69,7 @@ bool isA310 = false;
 bool isA320 = false;
 bool is747 = false;
 bool isK100 = false;
+bool isPA28 = false;
 bool isAirliner = false;
 double lastHeading = 0;
 int lastSoftkey = 0;
@@ -213,6 +214,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             isA320 = false;
             is747 = false;
             isK100 = false;
+            isPA28 = false;
             isAirliner = false;
 
             if (strncmp(simVars.aircraft, "A310", 4) == 0 || strncmp(simVars.aircraft, "Airbus A310", 11) == 0) {
@@ -229,6 +231,9 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             }
             else if (strncmp(simVars.aircraft, "Kodiak 100", 10) == 0) {
                 isK100 = true;
+            }
+            else if (strncmp(simVars.aircraft, "Just Flight PA28", 16) == 0) {
+                isPA28 = true;
             }
             else if (strncmp(simVars.aircraft, "Airbus", 6) == 0 || strncmp(simVars.aircraft, "Boeing", 6) == 0) {
                 isAirliner = true;
@@ -249,7 +254,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 else {
                     simVars.apuPercentRpm = 0;
                 }
-                simVars.suctionPressure = 5;
+
                 if (seatBeltsReplicateDelay > 0) {
                     seatBeltsReplicateDelay--;
                 }
@@ -371,6 +376,11 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             }
             else {
                 simVars.elecBat1 = simVars.dcVolts > 0;
+            }
+
+            if (simVars.connected && isAirliner && simVars.engineFuelFlow1 > 0 && simVars.suctionPressure < 0.001) {
+                // Stop Annunciator reporting a vacuum fault on airliners
+                simVars.suctionPressure = 5;
             }
 
             if (simVars.altAboveGround > 50) {
@@ -549,6 +559,14 @@ void init()
 {
     addReadDefs();
     mapEvents();
+
+    for (int i = 0; i < 7; i++) {
+        if (i < 4) {
+            simVars.sbEncoder[i] = 0;
+        }
+        simVars.sbButton[i] = 1;
+    }
+    simVars.sbMode = 3; // Autopilot / Radio / Instruments
 
     // Start requesting data
     if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_READ_ALL, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_VISUAL_FRAME, 0, 0, 0, 0) != 0) {
@@ -934,6 +952,30 @@ void processG1000Events()
     time(&lastG1000Press);
 }
 
+void processSwitchBox(int joyNum)
+{
+    switch (joyNum) {
+        case 1: simVars.sbEncoder[0]++; break;
+        case 2: simVars.sbEncoder[0]--; break;
+        case 3: simVars.sbButton[0]++; break;
+        case 4: simVars.sbEncoder[1]++; break;
+        case 5: simVars.sbEncoder[1]--; break;
+        case 6: simVars.sbButton[1]++; break;
+        case 7: simVars.sbEncoder[2]++; break;
+        case 8: simVars.sbEncoder[2]--; break;
+        case 9: simVars.sbButton[2]++; break;
+        case 10: simVars.sbEncoder[3]++; break;
+        case 11: simVars.sbEncoder[3]--; break;
+        case 12: simVars.sbButton[3]++; break;
+        case 13: simVars.sbButton[4]++; break;
+        case 14: simVars.sbButton[5]++; break;
+        case 15: simVars.sbButton[6]++; break;
+        case 17: simVars.sbMode = 1; break; // Autopilot
+        case 18: simVars.sbMode = 2; break; // Radio
+        case 19: simVars.sbMode = 3; break; // Instruments
+    }
+}
+
 void processRequest()
 {
     if (request.requestedSize == writeDataSize) {
@@ -961,8 +1003,8 @@ void processRequest()
 
         //// For testing only - Leave commented out
         //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
-        //    request.writeData.eventId = KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE;
-        //    request.writeData.value = 1;
+        //    request.writeData.eventId = KEY_COM2_VOLUME_SET;
+        //    request.writeData.value = 0;
         //    printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
         //}
         //else {
@@ -1004,6 +1046,9 @@ void processRequest()
             return;
         }
         else if (isK100 && jetbridgeK100ButtonPress(request.writeData.eventId, request.writeData.value)) {
+            return;
+        }
+        else if (isPA28 && jetbridgePA28ButtonPress(request.writeData.eventId, request.writeData.value)) {
             return;
         }
         else if (jetbridgeMiscButtonPress(request.writeData.eventId, request.writeData.value)) {
@@ -1052,6 +1097,22 @@ void processRequest()
 
         if (request.writeData.eventId >= KEY_G1000_PFD_SOFTKEY_1 && request.writeData.eventId <= KEY_G1000_END) {
             processG1000Events();
+        }
+
+        if (request.writeData.eventId == SWITCHBOX_JOY) {
+            processSwitchBox(request.writeData.value);
+            if (request.writeData.value > 16) {
+                // Mode switch so send reply to client
+                EVENT_ID event;
+                if (strncmp(simVars.aircraft, "Cessna 152", 10) == 0) {
+                    event = EVENT_IS_CESSNA_152;
+                }
+                else {
+                    event = EVENT_NOT_CESSNA_152;
+                }
+                sendto(sockfd, (char*)&event, sizeof(int), 0, (SOCKADDR*)&senderAddr, addrSize);
+            }
+            return;
         }
 
         if (request.writeData.eventId == KEY_TOGGLE_RAMPTRUCK) {
