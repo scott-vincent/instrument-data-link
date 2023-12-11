@@ -973,11 +973,26 @@ void processSwitchBox(int joyNum)
         case 17: simVars.sbMode = 1; break; // Autopilot
         case 18: simVars.sbMode = 2; break; // Radio
         case 19: simVars.sbMode = 3; break; // Instruments
+        case 20: simVars.sbMode = 4; break; // Navigation
     }
 }
 
-void processRequest()
+void processRequest(int bytes)
 {
+    //// For testing only - Leave commented out
+    //if (request.requestedSize == writeDataSize) {
+    //    if (request.writeData.eventId == KEY_SKYTRACK_STATE) {
+    //        printf("Received %d bytes from %s - Write Request eventId: SKYTRACK_STATE\n", bytes, inet_ntoa(senderAddr.sin_addr));
+    //    }
+    //    else {
+    //        printf("Received %d bytes from %s - Write Request eventId: %d\n", bytes, inet_ntoa(senderAddr.sin_addr), request.writeData.eventId);
+    //    }
+    //}
+    //else {
+    //    // To  test you can send from client with this command: echo - e '\x1\x0\x0\x0' | ncat -u 192.168.1.143 52020
+    //    printf("Received %d bytes from %s - Requesting %d bytes\n", bytes, inet_ntoa(senderAddr.sin_addr), request.requestedSize);
+    //}
+
     if (request.requestedSize == writeDataSize) {
          // This is a write
         if (request.writeData.eventId == KEY_ENG_CRANK) {
@@ -1003,7 +1018,7 @@ void processRequest()
 
         //// For testing only - Leave commented out
         //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
-        //    request.writeData.eventId = KEY_COM2_VOLUME_SET;
+        //    request.writeData.eventId = EVENT_RESET_DRONE_FOV;
         //    request.writeData.value = 0;
         //    printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
         //}
@@ -1114,6 +1129,10 @@ void processRequest()
             }
             return;
         }
+        else if (request.writeData.eventId == EVENT_RESET_DRONE_FOV) {
+            writeJetbridgeVar(DRONE_CAMERA_FOV, 50);
+            return;
+        }
 
         if (request.writeData.eventId == KEY_TOGGLE_RAMPTRUCK) {
             printf("Ramp truck requested\n");
@@ -1193,7 +1212,7 @@ void processRequest()
     }
     else {
         // Data size mismatch
-        bytes = sendto(sockfd, (char*)&instrumentsDataSize, sizeof(long), 0, (SOCKADDR*)&senderAddr, addrSize);
+        bytes = sendto(sockfd, (char*)&instrumentsDataSize, 4, 0, (SOCKADDR*)&senderAddr, addrSize);
 #ifdef SHOW_NETWORK_USAGE
         networkOut += bytes;
 #endif
@@ -1251,13 +1270,26 @@ void server()
         int sel = select(FD_SETSIZE, &fds, 0, 0, &timeout);
         if (sel > 0) {
             bytes = recvfrom(sockfd, (char*)&request, sizeof(request), 0, (SOCKADDR*)&senderAddr, &addrSize);
+
 #ifdef SHOW_NETWORK_USAGE
             networkIn += bytes;
 #endif
-            if (bytes > 0) {
-                processRequest();
+            if (bytes > 3) {
+                processRequest(bytes);
             }
             else {
+                if (bytes == -1) {
+                    int error = WSAGetLastError();
+                    if (error == 10040) {
+                        printf("Received more than %ld bytes from %s (WSAError = %d)\n", sizeof(request), inet_ntoa(senderAddr.sin_addr), error);
+                    }
+                    else {
+                        printf("Received from %s but WSAError = %d\n", inet_ntoa(senderAddr.sin_addr), error);
+                    }
+                }
+                else {
+                    printf("Received %d bytes from %s - Not a valid request\n", bytes, inet_ntoa(senderAddr.sin_addr));
+                }
                 bytes = SOCKET_ERROR;
             }
         }

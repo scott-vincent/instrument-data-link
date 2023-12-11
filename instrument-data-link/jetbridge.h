@@ -17,6 +17,8 @@
 
 #include "jetbridge\client.h"
 
+const char DRONE_CAMERA_FOV[] = "A:DRONE CAMERA FOV, percent";
+
 void jetbridgeInit(HANDLE hSimConnect);
 
 void readJetbridgeVar(const char* var);
