@@ -1,6 +1,6 @@
 /*
  * Flight Simulator Instrument Data Link
- * Copyright (c) 2023 Scott Vincent
+ * Copyright (c) 2024 Scott Vincent
  */
 
 #include <windows.h>
@@ -33,20 +33,23 @@ long networkIn;
 long networkOut;
 #endif
 
-// Comment the following line out if you don't want to reduce rudder sensitivity
-//#define RUDDER_SENSITIVITY
+// Comment the following line out if you don't have a Raspberry Pi Pico USB device
+#define PICO_JOYSTICK
 
-#ifdef RUDDER_SENSITIVITY
+#ifdef PICO_JOYSTICK
 #include <Mmsystem.h>
 #include <joystickapi.h>
 
-void joystickInit();
-void joystickRefresh();
+void picoInit();
+void picoRefresh();
 
 int joystickId = -1;
 int joystickRetry = 5;
+bool zeroed = false;
+double zeroPos[4];
+bool modeChange = false;
+JOYCAPSA joyCaps;
 JOYINFOEX joyInfo;
-double rudderSensitivity = 1;
 #endif
 
 enum FLIGHT_PHASE {
@@ -71,6 +74,8 @@ bool is747 = false;
 bool isK100 = false;
 bool isPA28 = false;
 bool isAirliner = false;
+bool isNewAircraft = false;
+char prevAircraft[32] = "\0";
 double lastHeading = 0;
 int lastSoftkey = 0;
 int lastG1000Key = 0;
@@ -216,6 +221,12 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             isK100 = false;
             isPA28 = false;
             isAirliner = false;
+            isNewAircraft = false;
+
+            if (strcmp(simVars.aircraft, prevAircraft) != 0) {
+                strcpy(prevAircraft, simVars.aircraft);
+                isNewAircraft = true;
+            }
 
             if (strncmp(simVars.aircraft, "A310", 4) == 0 || strncmp(simVars.aircraft, "Airbus A310", 11) == 0) {
                 isA310 = true;
@@ -403,6 +414,15 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 completedTakeOff = false;
             }
 
+#ifdef PICO_JOYSTICK
+            // Populate simvars for Pico USB switchbox
+            picoRefresh();
+
+            if (isNewAircraft) {
+                simVars.sbMode = 0;     // Default to autopilot
+            }
+#endif
+
             if (fixedPushback != -1) {
                 // Pushback goes wrong sometimes (pushbackState == 4)
                 fixedPushback++;
@@ -560,14 +580,6 @@ void init()
     addReadDefs();
     mapEvents();
 
-    for (int i = 0; i < 7; i++) {
-        if (i < 4) {
-            simVars.sbEncoder[i] = 0;
-        }
-        simVars.sbButton[i] = 1;
-    }
-    simVars.sbMode = 3; // Autopilot / Radio / Instruments
-
     // Start requesting data
     if (SimConnect_RequestDataOnSimObject(hSimConnect, REQ_ID, DEF_READ_ALL, SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_VISUAL_FRAME, 0, 0, 0, 0) != 0) {
         printf("Failed to start requesting data\n");
@@ -603,7 +615,7 @@ void cleanUp()
 
 int __cdecl _tmain(int argc, _TCHAR* argv[])
 {
-    printf("Instrument Data Link %s Copyright (c) 2023 Scott Vincent\n", versionString);
+    printf("Instrument Data Link %s Copyright (c) 2024 Scott Vincent\n", versionString);
 
     // Yield so server can start
     Sleep(100);
@@ -952,31 +964,6 @@ void processG1000Events()
     time(&lastG1000Press);
 }
 
-void processSwitchBox(int joyNum)
-{
-    switch (joyNum) {
-        case 1: simVars.sbEncoder[0]++; break;
-        case 2: simVars.sbEncoder[0]--; break;
-        case 3: simVars.sbButton[0]++; break;
-        case 4: simVars.sbEncoder[1]++; break;
-        case 5: simVars.sbEncoder[1]--; break;
-        case 6: simVars.sbButton[1]++; break;
-        case 7: simVars.sbEncoder[2]++; break;
-        case 8: simVars.sbEncoder[2]--; break;
-        case 9: simVars.sbButton[2]++; break;
-        case 10: simVars.sbEncoder[3]++; break;
-        case 11: simVars.sbEncoder[3]--; break;
-        case 12: simVars.sbButton[3]++; break;
-        case 13: simVars.sbButton[4]++; break;
-        case 14: simVars.sbButton[5]++; break;
-        case 15: simVars.sbButton[6]++; break;
-        case 17: simVars.sbMode = 1; break; // Autopilot
-        case 18: simVars.sbMode = 2; break; // Radio
-        case 19: simVars.sbMode = 3; break; // Instruments
-        case 20: simVars.sbMode = 4; break; // Navigation
-    }
-}
-
 void processRequest(int bytes)
 {
     //// For testing only - Leave commented out
@@ -1003,11 +990,6 @@ void processRequest(int bytes)
                     value = 1;
                 }
                 writeJetbridgeVar(A310_ENG_IGNITION, value);
-            }
-            else {
-#ifdef RUDDER_SENSITIVITY
-                rudderSensitivity = request.writeData.value + 1;
-#endif
             }
             return;
         }
@@ -1114,22 +1096,7 @@ void processRequest(int bytes)
             processG1000Events();
         }
 
-        if (request.writeData.eventId == SWITCHBOX_JOY) {
-            processSwitchBox(request.writeData.value);
-            if (request.writeData.value > 16) {
-                // Mode switch so send reply to client
-                EVENT_ID event;
-                if (strncmp(simVars.aircraft, "Cessna 152", 10) == 0) {
-                    event = EVENT_IS_CESSNA_152;
-                }
-                else {
-                    event = EVENT_NOT_CESSNA_152;
-                }
-                sendto(sockfd, (char*)&event, sizeof(int), 0, (SOCKADDR*)&senderAddr, addrSize);
-            }
-            return;
-        }
-        else if (request.writeData.eventId == EVENT_RESET_DRONE_FOV) {
+        if (request.writeData.eventId == EVENT_RESET_DRONE_FOV) {
             writeJetbridgeVar(DRONE_CAMERA_FOV, 50);
             return;
         }
@@ -1316,10 +1283,6 @@ void server()
             networkOut = 0;
         }
 #endif
-
-#ifdef RUDDER_SENSITIVITY
-        joystickRefresh();
-#endif
     }
 
     free(deltaData);
@@ -1332,77 +1295,120 @@ void server()
     printf("Server stopped\n");
 }
 
-#ifdef RUDDER_SENSITIVITY
-void joystickInit()
+#ifdef PICO_JOYSTICK
+/// <summary>
+/// Raspberry Pi Pico button box (4 encoders + 4 buttons) appears as a USB joystick
+/// </summary>
+void picoInit()
 {
-    joyInfo.dwSize = sizeof(joyInfo);
-    joyInfo.dwFlags = JOY_RETURNU | JOY_RETURNX | JOY_RETURNY | JOY_RETURNZ;
+    // Initialise simvars
+    simVars.sbMode = 0;     // Default to autopilot
+    for (int i = 0; i < 7; i++) {
+        if (i < 4) {
+            simVars.sbEncoder[i] = 0;
+        }
+        simVars.sbButton[i] = 0;
+    }
+
+    JOYCAPSA joyCaps;
 
     for (joystickId = 0; joystickId < 16; joystickId++) {
-        MMRESULT res = joyGetPosEx(joystickId, &joyInfo);
+        MMRESULT res = joyGetDevCaps(joystickId, &joyCaps, sizeof(joyCaps));
         if (res != JOYERR_NOERROR) {
             continue;
         }
 
-        // Rudder pedal axis will be centred (and throttles won't be)
-        if (joyInfo.dwUpos > 30000 && joyInfo.dwUpos < 36000 && (joyInfo.dwXpos != 32767 || joyInfo.dwYpos != 32767 || joyInfo.dwZpos != 32767)) {
+        // Pico has 4 axes and 9 buttons (includes 4 buttons for clickable encoders + a dummy refresh button)
+        if (joyCaps.wNumAxes == 4 && joyCaps.wNumButtons == 9) {
             break;
         }
-
-        //printf("Joystick %d (%d, %d, %d, %d) does not have rudder pedal input\n", joystickId, joyInfo.dwUpos, joyInfo.dwXpos, joyInfo.dwYpos, joyInfo.dwZpos);
     }
-
-    joyInfo.dwFlags = JOY_RETURNU;
 
     if (joystickId < 16) {
-        printf("Rudder pedal input found on joystick %d\n", joystickId);
+        printf("Found Pico joystick %d\n", joystickId);
+    }
+    else if (joystickRetry > 0) {
+        joystickRetry--;
+        joystickId = -1;
     }
     else {
-        if (joystickRetry > 0) {
-            joystickRetry--;
-            joystickId = -1;
-        }
-        else {
-            joystickId = 1;
-            printf("Defaulting to joystick %d for rudder pedal input\n", joystickId);
-        }
+        joystickId = -2;
+        printf("No Pico joystick connected\n");
     }
 }
 
-/// <summary>
-/// Reads the Rudder Pedal axis and sets vJoy axis 0 with reduced sensitivity.
-/// Sensitivity is reduced to one third until the extremes where it is linearly mapped back to the full value.
-/// To use: In FS2020, map vJoy axis 0 instead of the real rudder pedal axis.
-/// </summary>
-void joystickRefresh()
+void picoRefresh()
 {
     if (joystickId < 0 || joystickId > 15) {
         if (joystickId == -1) {
-            joystickInit();
-            vJoyInit();
+            picoInit();
         }
         return;
     }
+
+    JOYINFOEX joyInfo;
+    joyInfo.dwSize = sizeof(joyInfo);
+    joyInfo.dwFlags = JOY_RETURNALL;
+    joyInfo.dwButtons = 0xffffffffl;
 
     MMRESULT res = joyGetPosEx(joystickId, &joyInfo);
     if (res != JOYERR_NOERROR) {
         return;
     }
 
-    const int centre = 32767;
-
-    int rudderPos = joyInfo.dwUpos;
-    if (rudderSensitivity > 1) {
-        // Reduce sensitivity
-        rudderPos = centre + ((rudderPos - centre) / rudderSensitivity);
+    // First set of data with buttons = 256 (refresh button) will zeroise all axes
+    if (!zeroed && joyInfo.dwButtons == 256) {
+        zeroPos[0] = joyInfo.dwXpos;
+        zeroPos[1] = joyInfo.dwYpos;
+        zeroPos[2] = joyInfo.dwZpos;
+        zeroPos[3] = joyInfo.dwRpos;
+        zeroed = true;
     }
 
-#ifdef vJoyFallback
-    // printf("rudder: %d adjusted to %d\n", joyInfo.dwUpos, rudderPos);
-    vJoySetAxis(rudderPos);
-#else
-    printf("rudder not adjusted as no vJoy\n");
-    joystickId = 16;
-#endif
+    if (zeroed) {
+        // Set simvars
+        simVars.sbEncoder[0] = joyInfo.dwXpos - zeroPos[0];
+        simVars.sbEncoder[1] = joyInfo.dwYpos - zeroPos[1];
+        simVars.sbEncoder[2] = joyInfo.dwZpos - zeroPos[2];
+        simVars.sbEncoder[3] = joyInfo.dwRpos - zeroPos[3];
+        simVars.sbButton[0] = (joyInfo.dwButtons & 1) > 0;
+        simVars.sbButton[1] = (joyInfo.dwButtons & 2) > 0;
+        simVars.sbButton[2] = (joyInfo.dwButtons & 4) > 0;
+        double button3 = (joyInfo.dwButtons & 8) > 0;
+        simVars.sbButton[3] = (joyInfo.dwButtons & 16) > 0;
+        simVars.sbButton[4] = (joyInfo.dwButtons & 32) > 0;
+        simVars.sbButton[5] = (joyInfo.dwButtons & 64) > 0;
+        simVars.sbButton[6] = (joyInfo.dwButtons & 128) > 0;
+
+        //printf("Axes 0=%.0f, 1=%.0f, 2=%.0f, 3=%.0f  buttons 0=%.0f, 1=%.0f, 2=%.0f, 3=%.0f, 4=%.0f, 5=%.0f, 6=%.0f, 7=%.0f, \n",
+        //    simVars.sbEncoder[0], simVars.sbEncoder[1], simVars.sbEncoder[2], simVars.sbEncoder[3], simVars.sbButton[0], simVars.sbButton[1],
+        //    simVars.sbButton[2], button3, simVars.sbButton[3], simVars.sbButton[4], simVars.sbButton[5], simVars.sbButton[6]);
+
+        // Check for mode switch press (plays a sound when switched)
+        if (button3 && !modeChange) {
+            modeChange = true;
+            if (simVars.sbMode > 3) {
+                simVars.sbMode = 1;
+            }
+            else {
+                simVars.sbMode++;
+            }
+
+            char soundFile[50];
+            switch (int(simVars.sbMode)) {
+                case 2: strcpy(soundFile, "Sounds\\Switchbox Radio.wav"); break;
+                case 3: strcpy(soundFile, "Sounds\\Switchbox Instruments.wav"); break;
+                case 4: strcpy(soundFile, "Sounds\\Switchbox Navigation.wav"); break;
+                default: strcpy(soundFile, "Sounds\\Switchbox Autopilot.wav"); break;
+            }
+
+            PlaySound(soundFile, NULL, SND_FILENAME | SND_ASYNC);
+        }
+
+        // Check for mode switch release
+        if (modeChange && !button3) {
+            modeChange = false;
+        }
+    }
 }
-#endif // RUDDER_SENSITIVTY
+#endif // PICO_JOYSTICK
