@@ -1371,21 +1371,25 @@ void picoRefresh()
         simVars.sbEncoder[1] = joyInfo.dwYpos - zeroPos[1];
         simVars.sbEncoder[2] = joyInfo.dwZpos - zeroPos[2];
         simVars.sbEncoder[3] = joyInfo.dwRpos - zeroPos[3];
-        simVars.sbButton[0] = (joyInfo.dwButtons & 1) > 0;
-        simVars.sbButton[1] = (joyInfo.dwButtons & 2) > 0;
-        simVars.sbButton[2] = (joyInfo.dwButtons & 4) > 0;
-        double button3 = (joyInfo.dwButtons & 8) > 0;
-        simVars.sbButton[3] = (joyInfo.dwButtons & 16) > 0;
-        simVars.sbButton[4] = (joyInfo.dwButtons & 32) > 0;
-        simVars.sbButton[5] = (joyInfo.dwButtons & 64) > 0;
-        simVars.sbButton[6] = (joyInfo.dwButtons & 128) > 0;
+
+        // Buttons need to be set to 2 if pressed or 1 if released
+        simVars.sbButton[0] = 1 + ((joyInfo.dwButtons & 1) > 0);
+        simVars.sbButton[1] = 1 + ((joyInfo.dwButtons & 2) > 0);
+        simVars.sbButton[2] = 1 + ((joyInfo.dwButtons & 4) > 0);
+        simVars.sbButton[3] = 1 + ((joyInfo.dwButtons & 8) > 0);
+        simVars.sbButton[4] = 1 + ((joyInfo.dwButtons & 16) > 0);
+        simVars.sbButton[5] = 1 + ((joyInfo.dwButtons & 32) > 0);
+        simVars.sbButton[6] = 1 + ((joyInfo.dwButtons & 64) > 0);
+
+        // Mode button
+        double button7 = (joyInfo.dwButtons & 128) > 0;
 
         //printf("Axes 0=%.0f, 1=%.0f, 2=%.0f, 3=%.0f  buttons 0=%.0f, 1=%.0f, 2=%.0f, 3=%.0f, 4=%.0f, 5=%.0f, 6=%.0f, 7=%.0f, \n",
         //    simVars.sbEncoder[0], simVars.sbEncoder[1], simVars.sbEncoder[2], simVars.sbEncoder[3], simVars.sbButton[0], simVars.sbButton[1],
-        //    simVars.sbButton[2], button3, simVars.sbButton[3], simVars.sbButton[4], simVars.sbButton[5], simVars.sbButton[6]);
+        //    simVars.sbButton[2], simVars.sbButton[3], simVars.sbButton[4], simVars.sbButton[5], simVars.sbButton[6], button7);
 
-        // Check for mode switch press (plays a sound when switched)
-        if (button3 && !modeChange) {
+        // Check for mode button press (plays a sound when switched)
+        if (button7 && !modeChange) {
             modeChange = true;
             if (simVars.sbMode > 3) {
                 simVars.sbMode = 1;
@@ -1405,8 +1409,8 @@ void picoRefresh()
             PlaySound(soundFile, NULL, SND_FILENAME | SND_ASYNC);
         }
 
-        // Check for mode switch release
-        if (modeChange && !button3) {
+        // Check for mode button release
+        if (modeChange && !button7) {
             modeChange = false;
         }
     }
