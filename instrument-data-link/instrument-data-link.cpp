@@ -33,21 +33,33 @@ long networkIn;
 long networkOut;
 #endif
 
-// Comment the following line out if you don't have a Raspberry Pi Pico USB device
-#define PICO_JOYSTICK
+// Comment the following line out if you don't have any Raspberry Pi Pico USB devices
+#define PICO_USB
 
-#ifdef PICO_JOYSTICK
+#ifdef PICO_USB
 #include <Mmsystem.h>
 #include <joystickapi.h>
 
 void picoInit();
 void picoRefresh();
+void switchboxRefresh();
+void g1000Refresh();
+void g1000Encoder(int, int, int);
+void g1000EncoderPush(int);
+void g1000SoftkeyPush(int);
+void g1000ButtonPush(int);
 
-int joystickId = -1;
+int switchboxId = -1;
+int g1000Id = -1;
 int joystickRetry = 5;
-bool zeroed = false;
-double zeroPos[4];
+bool switchboxZeroed = false;
+double switchboxZeroPos[4];
+bool g1000Zeroed = false;
+double g1000ZeroPos[3];
 bool modeChange = false;
+double g1000EncoderVal[3];
+int g1000ButtonVal[20];
+time_t clrPress = 0;
 JOYCAPSA joyCaps;
 JOYINFOEX joyInfo;
 #endif
@@ -77,9 +89,6 @@ bool isAirliner = false;
 bool isNewAircraft = false;
 char prevAircraft[32] = "\0";
 double lastHeading = 0;
-int lastSoftkey = 0;
-int lastG1000Key = 0;
-time_t lastG1000Press = 0;
 int seatBeltsReplicateDelay = 0;
 int fixedPushback = -1;
 LVars_A310 a310Vars;
@@ -252,7 +261,8 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
 
             if (abs(simVars.hiHeading - lastHeading) > 10) {
                 // Fix gyro if aircraft heading changes abruptly
-                SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_HEADING_GYRO_SET, 1, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                //SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_HEADING_GYRO_SET, 1, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                writeJetbridgeVar(KEY_HEADING_GYRO_SET, 1);
             }
             lastHeading = simVars.hiHeading;
 
@@ -271,7 +281,8 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 }
                 else if (simVars.seatBeltsSwitch != a310Vars.seatbeltsSwitch) {
                     // Replicate lvar value back to standard SDK variable to make PACX work correctly
-                    SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE, 1, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                    //SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE, 1, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                    writeJetbridgeVar(KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE, 1);
                     seatBeltsReplicateDelay = 10;
                 }
                 simVars.seatBeltsSwitch = a310Vars.seatbeltsSwitch;
@@ -331,6 +342,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 }
                 simVars.transponderState = a320Vars.xpndrMode;
                 simVars.autopilotHeading = a320Vars.autopilotHeading;
+                simVars.autopilotAltitude = simVars.autopilotAltitude3;
                 simVars.autopilotVerticalSpeed = a320Vars.autopilotVerticalSpeed;
                 if (simVars.jbVerticalMode == 14) {
                     // V/S mode engaged
@@ -363,7 +375,8 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 // B747 Bug - Fix initial autopilot altitude
                 if (simVars.altAboveGround < 50 && simVars.autopilotAltitude > 49900) {
                     // Set autopilot altitude to 5000
-                    SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_AP_ALT_VAR_SET_ENGLISH, 5000, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                    //SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_AP_ALT_VAR_SET_ENGLISH, 5000, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                    writeJetbridgeVar(KEY_AP_ALT_VAR_SET_ENGLISH, 5000);
                 }
 
                 // B747 Bug - Fix master battery
@@ -413,13 +426,12 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 fflush(stdout);
                 completedTakeOff = false;
             }
-
-#ifdef PICO_JOYSTICK
-            // Populate simvars for Pico USB switchbox
+#ifdef PICO_USB
+            // Populate simvars for Pico USB devices
             picoRefresh();
 
             if (isNewAircraft) {
-                simVars.sbMode = 0;     // Default to autopilot
+                simVars.sbMode = 0;     // Default to autopilot on switchbox
             }
 #endif
 
@@ -432,14 +444,16 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                     }
                     else {
                         printf("Extra start pushback\n");
-                        SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                        //SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                        writeJetbridgeVar(KEY_TOGGLE_PUSHBACK, 0);
                     }
                 }
                 else if (fixedPushback == 40) {
                     fixedPushback = -1;
                     if (simVars.pushbackState < 3) {
                         printf("Extra stop pushback\n");
-                        SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                        //SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_TOGGLE_PUSHBACK, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                        writeJetbridgeVar(KEY_TOGGLE_PUSHBACK, 0);
                     }
                 }
             }
@@ -917,66 +931,14 @@ EVENT_ID getCustomEvent(int eventNum)
     return EVENT_NONE;
 }
 
-void processG1000Events()
-{
-    time_t now;
-    time(&now);
-    if (now - lastG1000Press > 5) {
-        // Timeout the previous press
-        lastSoftkey = 0;
-    }
-
-    if (request.writeData.eventId >= KEY_G1000_PFD_SOFTKEY_1 && request.writeData.eventId <= KEY_G1000_PFD_SOFTKEY_12) {
-        if (lastSoftkey == KEY_G1000_PFD_SOFTKEY_11 && request.writeData.eventId == KEY_G1000_PFD_SOFTKEY_11 && (lastG1000Key == KEY_G1000_MFD_RANGE_INC || lastG1000Key == KEY_G1000_MFD_RANGE_DEC)) {
-            // NRST -> Enter + DirectTo
-            SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_G1000_PFD_ENT, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
-            request.writeData.eventId = KEY_G1000_PFD_DIRECTTO;
-        }
-        else if (lastSoftkey == KEY_G1000_PFD_DIRECTTO) {
-            if (request.writeData.eventId == KEY_G1000_PFD_SOFTKEY_11) {
-                // NRST -> Enter (after DirectTo)
-                request.writeData.eventId = KEY_G1000_PFD_ENT;
-            }
-            else {
-                // Cancel DirectTo (back to NRST)
-                SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_G1000_PFD_DIRECTTO, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
-                request.writeData.eventId = KEY_G1000_PFD_SOFTKEY_11;
-            }
-        }
-        lastSoftkey = request.writeData.eventId;
-        lastG1000Key = request.writeData.eventId;
-    }
-    else if (request.writeData.eventId == KEY_G1000_MFD_RANGE_INC) {
-        lastG1000Key = request.writeData.eventId;
-        if (lastSoftkey == KEY_G1000_PFD_SOFTKEY_11) {
-            // RANGE_INC -> FMS_DEC
-            request.writeData.eventId = KEY_G1000_PFD_LOWER_DEC;
-        }
-    }
-    else if (request.writeData.eventId == KEY_G1000_MFD_RANGE_DEC) {
-        lastG1000Key = request.writeData.eventId;
-        if (lastSoftkey == KEY_G1000_PFD_SOFTKEY_11) {
-            // RANGE_DEC -> FMS_INC
-            request.writeData.eventId = KEY_G1000_PFD_LOWER_INC;
-        }
-    }
-
-    time(&lastG1000Press);
-}
-
 void processRequest(int bytes)
 {
     //// For testing only - Leave commented out
     //if (request.requestedSize == writeDataSize) {
-    //    if (request.writeData.eventId == KEY_SKYTRACK_STATE) {
-    //        printf("Received %d bytes from %s - Write Request eventId: SKYTRACK_STATE\n", bytes, inet_ntoa(senderAddr.sin_addr));
-    //    }
-    //    else {
-    //        printf("Received %d bytes from %s - Write Request eventId: %d\n", bytes, inet_ntoa(senderAddr.sin_addr), request.writeData.eventId);
-    //    }
+    //    printf("Received %d bytes from %s - Write Request event: %s\n", bytes, inet_ntoa(senderAddr.sin_addr), WriteEvents[request.writeData.eventId].name);
     //}
     //else {
-    //    // To  test you can send from client with this command: echo - e '\x1\x0\x0\x0' | ncat -u 192.168.1.143 52020
+    //    // To  test you can send from client with this command: echo - e '\x1\x0\x0\x0' | ncat -u 192.168.1.80 52020
     //    printf("Received %d bytes from %s - Requesting %d bytes\n", bytes, inet_ntoa(senderAddr.sin_addr), request.requestedSize);
     //}
 
@@ -1092,10 +1054,6 @@ void processRequest(int bytes)
             return;
         }
 
-        if (request.writeData.eventId >= KEY_G1000_PFD_SOFTKEY_1 && request.writeData.eventId <= KEY_G1000_END) {
-            processG1000Events();
-        }
-
         if (request.writeData.eventId == EVENT_RESET_DRONE_FOV) {
             writeJetbridgeVar(DRONE_CAMERA_FOV, 50);
             return;
@@ -1105,25 +1063,10 @@ void processRequest(int bytes)
             printf("Ramp truck requested\n");
         }
 
-        if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
-            printf("Failed to transmit event: %d\n", request.writeData.eventId);
-        }
-
-        if (request.writeData.eventId == KEY_COM1_STBY_RADIO_SET || request.writeData.eventId == KEY_COM2_STBY_RADIO_SET) {
-            // Check for extra .5 on value
-            int val = (int)(request.writeData.value * 10 + 0.01);
-            if (val % 10 >= 4) {
-                if (request.writeData.eventId == KEY_COM1_STBY_RADIO_SET) {
-                    request.writeData.eventId = KEY_COM1_RADIO_FRACT_INC;
-                }
-                else {
-                    request.writeData.eventId = KEY_COM2_RADIO_FRACT_INC;
-                }
-                if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
-                    printf("Failed to transmit event: %d\n", request.writeData.eventId);
-                }
-            }
-        }
+        //if (SimConnect_TransmitClientEvent(hSimConnect, 0, request.writeData.eventId, (DWORD)request.writeData.value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY) != 0) {
+        //    printf("Failed to transmit event: %d\n", request.writeData.eventId);
+        //}
+        writeJetbridgeVar(request.writeData.eventId, request.writeData.value);
     }
     else if (request.requestedSize == instrumentsDataSize) {
         // Send instrument data to the client that polled us
@@ -1295,14 +1238,15 @@ void server()
     printf("Server stopped\n");
 }
 
-#ifdef PICO_JOYSTICK
+#ifdef PICO_USB
 /// <summary>
-/// Raspberry Pi Pico button box (4 encoders + 4 buttons) appears as a USB joystick
+/// Raspberry Pi Pico Switchbox (4 encoders + 4 buttons) appears as a USB joystick with 4 axes and 9 buttons.
+/// Raspberry Pi Pico Garmin G1000 appears as another USB joystick with 3 axes and 21 buttons.
 /// </summary>
 void picoInit()
 {
     // Initialise simvars
-    simVars.sbMode = 0;     // Default to autopilot
+    simVars.sbMode = 0;     // Default to autopilot on switchbox
     for (int i = 0; i < 7; i++) {
         if (i < 4) {
             simVars.sbEncoder[i] = 0;
@@ -1311,6 +1255,7 @@ void picoInit()
     }
 
     JOYCAPSA joyCaps;
+    int joystickId;
 
     for (joystickId = 0; joystickId < 16; joystickId++) {
         MMRESULT res = joyGetDevCaps(joystickId, &joyCaps, sizeof(joyCaps));
@@ -1318,75 +1263,97 @@ void picoInit()
             continue;
         }
 
-        // Pico has 4 axes and 9 buttons (includes 4 buttons for clickable encoders + a dummy refresh button)
-        if (joyCaps.wNumAxes == 4 && joyCaps.wNumButtons == 9) {
-            break;
+        // Pico Switchbox has 4 axes and 9 buttons (includes 4 buttons for clickable encoders + a dummy refresh button)
+        if (switchboxId < 0 && joyCaps.wNumAxes == 4 && joyCaps.wNumButtons == 9) {
+            switchboxId = joystickId;
+            printf("Found Pico Switchbox joystick id %d\n", switchboxId);
+        }
+
+        // Pico G1000 has 3 axes and 21 buttons
+        if (g1000Id < 0 && joyCaps.wNumAxes == 3 && joyCaps.wNumButtons == 21) {
+            g1000Id = joystickId;
+            printf("Found Pico G1000 joystick id %d\n", g1000Id);
         }
     }
 
-    if (joystickId < 16) {
-        printf("Found Pico joystick %d\n", joystickId);
+    if (switchboxId >= 0 and g1000Id >= 0) {
+        joystickRetry = 0;
     }
     else if (joystickRetry > 0) {
         joystickRetry--;
-        joystickId = -1;
     }
     else {
-        joystickId = -2;
-        printf("No Pico joystick connected\n");
+        if (switchboxId < 0) {
+            printf("No Pico Switchbox connected\n");
+        }
+
+        if (g1000Id < 0) {
+            printf("No Pico G1000 connected\n");
+        }
     }
 }
 
 void picoRefresh()
 {
-    if (joystickId < 0 || joystickId > 15) {
-        if (joystickId == -1) {
-            picoInit();
-        }
-        return;
+    if (joystickRetry > 0) {
+        picoInit();
     }
 
+    if (switchboxId >= 0) {
+        switchboxRefresh();
+    }
+
+    if (g1000Id >= 0) {
+        g1000Refresh();
+    }
+}
+
+void switchboxRefresh()
+{
     JOYINFOEX joyInfo;
     joyInfo.dwSize = sizeof(joyInfo);
     joyInfo.dwFlags = JOY_RETURNALL;
     joyInfo.dwButtons = 0xffffffffl;
 
-    MMRESULT res = joyGetPosEx(joystickId, &joyInfo);
+    MMRESULT res = joyGetPosEx(switchboxId, &joyInfo);
     if (res != JOYERR_NOERROR) {
         return;
     }
 
-    // First set of data with buttons = 256 (refresh button) will zeroise all axes
-    if (!zeroed && joyInfo.dwButtons == 256) {
-        zeroPos[0] = joyInfo.dwXpos;
-        zeroPos[1] = joyInfo.dwYpos;
-        zeroPos[2] = joyInfo.dwZpos;
-        zeroPos[3] = joyInfo.dwRpos;
-        zeroed = true;
+    // First set of data with button 8 pressed (refresh button) will zeroise all axes
+    if (!switchboxZeroed && joyInfo.dwButtons == (1 << 8)) {
+        switchboxZeroPos[0] = joyInfo.dwXpos;
+        switchboxZeroPos[1] = joyInfo.dwYpos;
+        switchboxZeroPos[2] = joyInfo.dwZpos;
+        switchboxZeroPos[3] = joyInfo.dwRpos;
+        switchboxZeroed = true;
     }
 
-    if (zeroed) {
+    if (switchboxZeroed) {
         // Set simvars
-        simVars.sbEncoder[0] = joyInfo.dwXpos - zeroPos[0];
-        simVars.sbEncoder[1] = joyInfo.dwYpos - zeroPos[1];
-        simVars.sbEncoder[2] = joyInfo.dwZpos - zeroPos[2];
-        simVars.sbEncoder[3] = joyInfo.dwRpos - zeroPos[3];
+        simVars.sbEncoder[0] = joyInfo.dwXpos - switchboxZeroPos[0];
+        simVars.sbEncoder[1] = joyInfo.dwYpos - switchboxZeroPos[1];
+        simVars.sbEncoder[2] = joyInfo.dwZpos - switchboxZeroPos[2];
+        simVars.sbEncoder[3] = joyInfo.dwRpos - switchboxZeroPos[3];
+
+        //printf("Switchbox Axes 0=%.0f, 1=%.0f, 2=%.0f, 3=%.0f\n", simVars.sbEncoder[0], simVars.sbEncoder[1], simVars.sbEncoder[2], simVars.sbEncoder[3]);
 
         // Buttons need to be set to 2 if pressed or 1 if released
-        simVars.sbButton[0] = 1 + ((joyInfo.dwButtons & 1) > 0);
-        simVars.sbButton[1] = 1 + ((joyInfo.dwButtons & 2) > 0);
-        simVars.sbButton[2] = 1 + ((joyInfo.dwButtons & 4) > 0);
-        simVars.sbButton[3] = 1 + ((joyInfo.dwButtons & 8) > 0);
-        simVars.sbButton[4] = 1 + ((joyInfo.dwButtons & 16) > 0);
-        simVars.sbButton[5] = 1 + ((joyInfo.dwButtons & 32) > 0);
-        simVars.sbButton[6] = 1 + ((joyInfo.dwButtons & 64) > 0);
+        int mask = 1;
+        for (int i = 0; i < 7; i++) {
+            simVars.sbButton[i] = 1 + ((joyInfo.dwButtons & mask) > 0);
+            mask = mask << 1;
+
+            //if (simVars.sbButton[i] == 2) {
+            //    printf("Pico Switchbox button %d pressed\n", i);
+            //}
+        }
 
         // Mode button
-        double button7 = (joyInfo.dwButtons & 128) > 0;
-
-        //printf("Axes 0=%.0f, 1=%.0f, 2=%.0f, 3=%.0f  buttons 0=%.0f, 1=%.0f, 2=%.0f, 3=%.0f, 4=%.0f, 5=%.0f, 6=%.0f, 7=%.0f, \n",
-        //    simVars.sbEncoder[0], simVars.sbEncoder[1], simVars.sbEncoder[2], simVars.sbEncoder[3], simVars.sbButton[0], simVars.sbButton[1],
-        //    simVars.sbButton[2], simVars.sbButton[3], simVars.sbButton[4], simVars.sbButton[5], simVars.sbButton[6], button7);
+        double button7 = (joyInfo.dwButtons & (1 << 7)) > 0;
+        //if (button7) {
+        //    printf("Pico Switchbox mode button pressed\n");
+        //}
 
         // Check for mode button press (plays a sound when switched)
         if (button7 && !modeChange) {
@@ -1415,4 +1382,161 @@ void picoRefresh()
         }
     }
 }
-#endif // PICO_JOYSTICK
+
+void g1000Refresh()
+{
+    JOYINFOEX joyInfo;
+    joyInfo.dwSize = sizeof(joyInfo);
+    joyInfo.dwFlags = JOY_RETURNALL;
+    joyInfo.dwButtons = 0xffffffffl;
+
+    MMRESULT res = joyGetPosEx(g1000Id, &joyInfo);
+    if (res != JOYERR_NOERROR) {
+        return;
+    }
+
+    // First set of data with button 20 pressed (refresh button) will zeroise all axes
+    if (!g1000Zeroed && joyInfo.dwButtons == (1 << 20)) {
+        g1000ZeroPos[0] = joyInfo.dwXpos;
+        g1000ZeroPos[1] = joyInfo.dwYpos;
+        g1000ZeroPos[2] = joyInfo.dwZpos;
+        g1000Zeroed = true;
+
+        g1000EncoderVal[0] = 0;
+        g1000EncoderVal[1] = 0;
+        g1000EncoderVal[2] = 0;
+
+        for (int i = 0; i < 20; i++) {
+            g1000ButtonVal[i] = 1;
+        }
+    }
+
+    if (g1000Zeroed) {
+        double lower = joyInfo.dwXpos - g1000ZeroPos[0];
+        double upper = joyInfo.dwYpos - g1000ZeroPos[1];
+        double zoom = joyInfo.dwZpos - g1000ZeroPos[2];
+
+        //printf("G1000 Axes 0=%.0f, 1=%.0f, 2=%.0f\n", lower, upper, zoom);
+
+        // Passes 0 if no change, > 0 if turned clockwise and < 0 if turned anti-clockwise
+        g1000Encoder(lower - g1000EncoderVal[0], upper - g1000EncoderVal[1], zoom - g1000EncoderVal[2]);
+        
+        g1000EncoderVal[0] = lower;
+        g1000EncoderVal[1] = upper;
+        g1000EncoderVal[2] = zoom;
+
+        int mask = 1;
+        for (int i = 0; i < 20; i++) {
+            // Buttons need to be set to 2 if pressed or 1 if released
+            int buttonVal = 1 + ((joyInfo.dwButtons & mask) > 0);
+            mask = mask << 1;
+
+            // Has button state changed?
+            if (buttonVal == g1000ButtonVal[i]) {
+                // Check for CLR long press
+                if (i == 18 && buttonVal == 2 && clrPress > 0) {
+                    time_t now;
+                    time(&now);
+                    if (now - clrPress > 1) {
+                        writeJetbridgeHvar(WriteEvents[HVAR_G1000_PFD_CLR_LONG].name);
+                        clrPress = 0;
+                    }
+                }
+                continue;
+            }
+
+            g1000ButtonVal[i] = buttonVal;
+
+            // Has button been pressed?
+            if (buttonVal == 2) {
+                if (i < 2) {
+                    // Encoder click x 2
+                    g1000EncoderPush(i);
+                }
+                else if (i < 14) {
+                    // Softkey x 12
+                    g1000SoftkeyPush(i - 2);
+                }
+                else {
+                    // Button x 6
+                    g1000ButtonPush(i - 14);
+                    // If CLR button save time pressed
+                    if (i == 18) {
+                        time(&clrPress);
+                    }
+                    else {
+                        clrPress = 0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void g1000Encoder(int lowerDiff, int upperDiff, int zoomDiff)
+{
+    EVENT_ID eventId;
+
+    if (lowerDiff != 0) {
+        if (lowerDiff > 0) {
+            eventId = HVAR_G1000_MFD_LOWER_INC;
+        }
+        else {
+            eventId = HVAR_G1000_MFD_LOWER_DEC;
+        }
+        writeJetbridgeHvar(WriteEvents[eventId].name);
+    }
+
+    if (upperDiff != 0) {
+        if (upperDiff > 0) {
+            eventId = HVAR_G1000_MFD_UPPER_INC;
+        }
+        else {
+            eventId = HVAR_G1000_MFD_UPPER_DEC;
+        }
+        writeJetbridgeHvar(WriteEvents[eventId].name);
+    }
+
+    if (zoomDiff != 0) {
+        if (zoomDiff > 0) {
+            eventId = HVAR_G1000_MFD_RANGE_DEC;
+        }
+        else {
+            eventId = HVAR_G1000_MFD_RANGE_INC;
+        }
+        writeJetbridgeHvar(WriteEvents[eventId].name);
+    }
+}
+
+void g1000EncoderPush(int num)
+{
+    EVENT_ID eventId;
+    if (num == 0) {
+        eventId = HVAR_G1000_MFD_PUSH;
+    }
+    else {
+        eventId = HVAR_G1000_MFD_JOYSTICK_PUSH;
+    }
+    writeJetbridgeHvar(WriteEvents[eventId].name);
+}
+
+void g1000SoftkeyPush(int num)
+{
+    int eventNum = HVAR_G1000_MFD_SOFTKEY_1 + num;
+    writeJetbridgeHvar(WriteEvents[eventNum].name);
+}
+
+void g1000ButtonPush(int num)
+{
+    EVENT_ID eventId;
+    switch (num) {
+        case 0: eventId = HVAR_G1000_MFD_DIRECTTO; break;
+        case 1: eventId = HVAR_G1000_MFD_MENU; break;
+        case 2: eventId = HVAR_G1000_MFD_FPL; break;
+        case 3: eventId = HVAR_G1000_MFD_PROC; break;
+        case 4: eventId = HVAR_G1000_MFD_CLR; break;
+        default: eventId = HVAR_G1000_MFD_ENT; break;
+    }
+    writeJetbridgeHvar(WriteEvents[eventId].name);
+}
+#endif // PICO_USB

@@ -3,15 +3,17 @@
 #ifdef jetbridgeFallback
 
 #include "jetbridge\client.h"
-#include "simvarDefs.h"
 #include "LVars-A310.h"
 #include "LVars-A32NX.h"
 #include "LVars-Kodiak100.h"
 #include "LVars-PA28.h"
 
+//#define DEBUG_WRITES
+
 extern SimVars simVars;
 extern LVars_A310 a310Vars;
 extern LVars_A320 a320Vars;
+extern WriteEvent WriteEvents[];
 
 jetbridge::Client* jetbridgeClient = 0;
 
@@ -30,6 +32,7 @@ void readJetbridgeVar(const char* var)
     char rpnCode[128];
     sprintf_s(rpnCode, "(%s)", var);
     jetbridgeClient->request(rpnCode);
+    //printf("%s\n", rpnCode);
 }
 
 void writeJetbridgeVar(const char* var, double val)
@@ -38,6 +41,29 @@ void writeJetbridgeVar(const char* var, double val)
     char rpnCode[128];
     sprintf_s(rpnCode, "%f (>%s)", val, var);
     jetbridgeClient->request(rpnCode);
+#ifdef DEBUG_WRITES
+    printf("%s\n", rpnCode);
+#endif
+}
+
+void writeJetbridgeVar(EVENT_ID eventId, double val)
+{
+    char rpnCode[128];
+    sprintf_s(rpnCode, "%f (>K:%s)", val, WriteEvents[eventId].name);
+    jetbridgeClient->request(rpnCode);
+#ifdef DEBUG_WRITES
+    printf("%s\n", rpnCode);
+#endif
+}
+
+void writeJetbridgeHvar(const char* var)
+{
+    char rpnCode[128];
+    sprintf_s(rpnCode, "(>H:%s)", var);
+    jetbridgeClient->request(rpnCode);
+#ifdef DEBUG_WRITES
+    printf("%s\n", rpnCode);
+#endif
 }
 
 void writeJetbridge_A32NX_CabinLights(double val)
@@ -440,7 +466,7 @@ bool jetbridgeA310ButtonPress(int eventId, double value)
             writeJetbridgeVar(A310_MANAGED_HEADING, 1);
         }
         return true;
-    case KEY_NAV1_STBY_SET:
+    case KEY_NAV1_STBY_SET_HZ:
     {
         int mhz = int(value);
         int khz = int((0.005 + value - mhz) * 100);
@@ -486,8 +512,11 @@ bool jetbridgeA320ButtonPress(int eventId, double value)
     case KEY_CABIN_LIGHTS_SET:
         writeJetbridge_A32NX_CabinLights(value);
         return true;
+    case KEY_AP_ALT_VAR_SET_ENGLISH:
+        writeJetbridgeVar(A32NX_FCU_ALT_INCREMENT_SET, 100);
+        writeJetbridgeVar(A32NX_FCU_ALT_SET, value);
+        return true;
     }
-
     return false;
 }
 

@@ -3,6 +3,7 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include "simvarDefs.h"
 
 // SimConnect doesn't currently support reading local (lvar) variables
 // (params for 3rd party aircraft) but Jetbridge allows us to do this.
@@ -23,6 +24,8 @@ void jetbridgeInit(HANDLE hSimConnect);
 
 void readJetbridgeVar(const char* var);
 void writeJetbridgeVar(const char* var, double val);
+void writeJetbridgeVar(EVENT_ID eventId, double val);
+void writeJetbridgeHvar(const char* var);
 
 void updateA310FromJetbridge(const char* data);
 void updateA320FromJetbridge(const char* data);
