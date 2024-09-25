@@ -1254,6 +1254,8 @@ void picoInit()
         simVars.sbButton[i] = 0;
     }
 
+    simVars.sbParkBrake = -1;
+
     JOYCAPSA joyCaps;
     int joystickId;
 
@@ -1263,8 +1265,8 @@ void picoInit()
             continue;
         }
 
-        // Pico Switchbox has 4 axes and 9 buttons (includes 4 buttons for clickable encoders + a dummy refresh button)
-        if (switchboxId < 0 && joyCaps.wNumAxes == 4 && joyCaps.wNumButtons == 9) {
+        // Pico Switchbox has 4 axes and 10 buttons (includes 4 buttons for clickable encoders + park brake button + a dummy refresh button)
+        if (switchboxId < 0 && joyCaps.wNumAxes == 4 && joyCaps.wNumButtons == 10) {
             switchboxId = joystickId;
             printf("Found Pico Switchbox joystick id %d\n", switchboxId);
         }
@@ -1320,8 +1322,8 @@ void switchboxRefresh()
         return;
     }
 
-    // First set of data with button 8 pressed (refresh button) will zeroise all axes
-    if (!switchboxZeroed && joyInfo.dwButtons == (1 << 8)) {
+    // First set of data with button 9 pressed (refresh button) will zeroise all axes
+    if (!switchboxZeroed && joyInfo.dwButtons == (1 << 9)) {
         switchboxZeroPos[0] = joyInfo.dwXpos;
         switchboxZeroPos[1] = joyInfo.dwYpos;
         switchboxZeroPos[2] = joyInfo.dwZpos;
@@ -1353,6 +1355,12 @@ void switchboxRefresh()
         double button7 = (joyInfo.dwButtons & (1 << 7)) > 0;
         //if (button7) {
         //    printf("Pico Switchbox mode button pressed\n");
+        //}
+
+        // Park Brake
+        simVars.sbParkBrake = (joyInfo.dwButtons & (1 << 8)) > 0;
+        //if (simVars.sbParkBrake) {
+        //    printf("Pico Switchbox Park Brake on\n");
         //}
 
         // Check for mode button press (plays a sound when switched)
