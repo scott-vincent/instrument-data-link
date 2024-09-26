@@ -559,6 +559,9 @@ bool jetbridgeMiscButtonPress(int eventId, double value)
     case KEY_XPNDR_STATE:
         writeJetbridgeVar("A:TRANSPONDER STATE:1, enum", value);
         return true;
+    case KEY_BARO_MODE:
+        writeJetbridgeVar("L:XMLVAR_Baro1_Mode, enum", value);
+        return true;
     }
 
     return false;
