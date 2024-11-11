@@ -1,16 +1,18 @@
 
-#ifndef _LVARS_A32NX_H_
-#define _LVARS_A32NX_H_
+#ifndef _LVARS_FBW_H_
+#define _LVARS_FBW_H_
 
 #include <stdio.h>
 
-// LVars for FBW Airbus A320
+// LVars for FBW Airbus A320 & A380
 const char A32NX_APU_MASTER_SW[] = "L:A32NX_OVHD_APU_MASTER_SW_PB_IS_ON, bool";
 const char A32NX_APU_START[] = "L:A32NX_OVHD_APU_START_PB_IS_ON, bool";
 const char A32NX_APU_START_AVAIL[] = "L:A32NX_OVHD_APU_START_PB_IS_AVAILABLE, bool";
 const char A32NX_APU_BLEED[] = "L:A32NX_OVHD_PNEU_APU_BLEED_PB_IS_ON, bool";
 const char A32NX_ELEC_BAT1[] = "L:A32NX_OVHD_ELEC_BAT_1_PB_IS_AUTO, bool";
 const char A32NX_ELEC_BAT2[] = "L:A32NX_OVHD_ELEC_BAT_2_PB_IS_AUTO, bool";
+const char A32NX_ELEC_BAT_ESS[] = "L:A32NX_OVHD_ELEC_BAT_ESS_PB_IS_AUTO, bool";
+const char A32NX_ELEC_BAT_APU[] = "L:A32NX_OVHD_ELEC_BAT_APU_PB_IS_AUTO, bool";
 const char A32NX_PARK_BRAKE_POS[] = "L:A32NX_PARK_BRAKE_LEVER_POS, bool";
 const char A32NX_XPNDR_MODE[] = "L:A32NX_TRANSPONDER_MODE, enum";
 const char A32NX_AUTOPILOT_1[] = "L:A32NX_AUTOPILOT_1_ACTIVE, bool";
@@ -42,7 +44,7 @@ const char A32NX_ENGINE_FUEL_FLOW2[] = "L:A32NX_ENGINE_FF:2, number";
 const char A32NX_FLAPS_INDEX[] = "L:A32NX_FLAPS_HANDLE_INDEX, number";
 const char A32NX_SPOILERS_HANDLE_POS[] = "L:A32NX_SPOILERS_HANDLE_POSITION, number";
 
-struct LVars_A320
+struct LVars_FBW
 {
     double apuStart = 0;
     double apuStartAvail = 0;
@@ -65,4 +67,4 @@ struct LVars_A320
     double engineFuelFlow2 = 0;
 };
 
-#endif // _LVARS_A32NX_H_
+#endif // _LVARS_FBW_H_

@@ -9,7 +9,7 @@
 #include <thread>
 #include "simvarDefs.h"
 #include "LVars-A310.h"
-#include "LVars-A32NX.h"
+#include "LVars-Fbw.h"
 #include "LVars-Kodiak100.h"
 #include "jetbridge.h"
 #include "vjoy.h"
@@ -81,7 +81,9 @@ bool hasFlown = false;
 int onStandState = 0;
 double skytrackState = 0;
 bool isA310 = false;
+bool isFbw = false;
 bool isA320 = false;
+bool isA380 = false;
 bool is747 = false;
 bool isK100 = false;
 bool isPA28 = false;
@@ -92,7 +94,7 @@ double lastHeading = 0;
 int seatBeltsReplicateDelay = 0;
 int fixedPushback = -1;
 LVars_A310 a310Vars;
-LVars_A320 a320Vars;
+LVars_FBW fbwVars;
 HANDLE hSimConnect = NULL;
 extern const char* versionString;
 extern const char* SimVarDefs[][2];
@@ -157,8 +159,8 @@ void pollJetbridge()
             readA310Jetbridge();
             Sleep(loopMillis);
         }
-        else if (simVars.connected && isA320) {
-            readA320Jetbridge();
+        else if (simVars.connected && isFbw) {
+            readFbwJetbridge();
             Sleep(loopMillis);
         }
         else {
@@ -225,7 +227,9 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             // Populate internal variables
             simVars.skytrackState = skytrackState;
             isA310 = false;
+            isFbw = false;
             isA320 = false;
+            isA380 = false;
             is747 = false;
             isK100 = false;
             isPA28 = false;
@@ -237,15 +241,25 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 isNewAircraft = true;
             }
 
-            if (strncmp(simVars.aircraft, "A310", 4) == 0 || strncmp(simVars.aircraft, "Airbus A310", 11) == 0) {
-                isA310 = true;
-                isAirliner = true;
+            char* pos = strchr(simVars.aircraft, '3');
+            if (pos && *(pos - 1) == 'A') {
+                if (*(pos + 1) == '1') {
+                    isA310 = true;
+                    isAirliner = true;
+                }
+                else if (*(pos + 1) == '2') {
+                    isFbw = true;
+                    isA320 = true;
+                    isAirliner = true;
+                }
+                else if (*(pos + 1) == '8') {
+                    isFbw = true;
+                    isA380 = true;
+                    isAirliner = true;
+                }
             }
-            else if (strncmp(simVars.aircraft, "FBW", 3) == 0 || strncmp(simVars.aircraft, "Airbus A320", 11) == 0) {
-                isA320 = true;
-                isAirliner = true;
-            }
-            else if (strncmp(simVars.aircraft, "Salty", 5) == 0 || strncmp(simVars.aircraft, "Boeing 747-8", 12) == 0) {
+
+            if (strncmp(simVars.aircraft, "Salty", 5) == 0 || strncmp(simVars.aircraft, "Boeing 747-8", 12) == 0) {
                 is747 = true;
                 isAirliner = true;
             }
@@ -318,32 +332,32 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.nav1Standby = a310Vars.ilsFrequency / 100;
                 simVars.vor1Obs = a310Vars.ilsCourse;
             }
-            else if (simVars.connected && isA320) {
-                // Map A32NX vars to real vars
-                simVars.apuStartSwitch = a320Vars.apuStart;
-                if (a320Vars.apuStartAvail) {
+            else if (simVars.connected && isFbw) {
+                // Map FBW vars to real vars
+                simVars.apuStartSwitch = fbwVars.apuStart;
+                if (fbwVars.apuStartAvail) {
                     simVars.apuPercentRpm = 100;
                 }
                 else {
                     simVars.apuPercentRpm = 0;
                 }
-                simVars.tfFlapsIndex = a320Vars.flapsIndex;
-                simVars.parkingBrakeOn = a320Vars.parkBrakePos;
-                simVars.tfSpoilersPosition = a320Vars.spoilersHandlePos;
-                simVars.brakeLeftPedal = a320Vars.leftBrakePedal;
-                simVars.brakeRightPedal = a320Vars.rightBrakePedal;
-                simVars.rudderPosition = a320Vars.rudderPedalPos / 100.0;
-                simVars.autopilotEngaged = (a320Vars.autopilot1 == 0 && a320Vars.autopilot2 == 0) ? 0 : 1;
-                if (a320Vars.autothrust == 0) {
+                simVars.tfFlapsIndex = fbwVars.flapsIndex;
+                simVars.parkingBrakeOn = fbwVars.parkBrakePos;
+                simVars.tfSpoilersPosition = fbwVars.spoilersHandlePos;
+                simVars.brakeLeftPedal = fbwVars.leftBrakePedal;
+                simVars.brakeRightPedal = fbwVars.rightBrakePedal;
+                simVars.rudderPosition = fbwVars.rudderPedalPos / 100.0;
+                simVars.autopilotEngaged = (fbwVars.autopilot1 == 0 && fbwVars.autopilot2 == 0) ? 0 : 1;
+                if (fbwVars.autothrust == 0) {
                     simVars.autothrottleActive = 0;
                 }
                 else {
                     simVars.autothrottleActive = 1;
                 }
-                simVars.transponderState = a320Vars.xpndrMode;
-                simVars.autopilotHeading = a320Vars.autopilotHeading;
+                simVars.transponderState = fbwVars.xpndrMode;
+                simVars.autopilotHeading = fbwVars.autopilotHeading;
                 simVars.autopilotAltitude = simVars.autopilotAltitude3;
-                simVars.autopilotVerticalSpeed = a320Vars.autopilotVerticalSpeed;
+                simVars.autopilotVerticalSpeed = fbwVars.autopilotVerticalSpeed;
                 if (simVars.jbVerticalMode == 14) {
                     // V/S mode engaged
                     simVars.autopilotVerticalHold = 1;
@@ -351,7 +365,7 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 else if (simVars.jbVerticalMode == 15) {
                     // FPA mode engaged
                     simVars.autopilotVerticalHold = -1;
-                    simVars.autopilotVerticalSpeed = a320Vars.autopilotFpa;
+                    simVars.autopilotVerticalSpeed = fbwVars.autopilotFpa;
                 }
                 else {
                     simVars.autopilotVerticalHold = 0;
@@ -359,10 +373,10 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
                 simVars.autopilotApproachHold = simVars.jbLocMode;
                 simVars.autopilotGlideslopeHold = simVars.jbApprMode;
                 simVars.tfAutoBrake = simVars.jbAutobrake + 1;
-                simVars.exhaustGasTemp1 = a320Vars.engineEgt1;
-                simVars.exhaustGasTemp2 = a320Vars.engineEgt2;
-                simVars.engineFuelFlow1 = a320Vars.engineFuelFlow1;
-                simVars.engineFuelFlow2 = a320Vars.engineFuelFlow2;
+                simVars.exhaustGasTemp1 = fbwVars.engineEgt1;
+                simVars.exhaustGasTemp2 = fbwVars.engineEgt2;
+                simVars.engineFuelFlow1 = fbwVars.engineFuelFlow1;
+                simVars.engineFuelFlow2 = fbwVars.engineFuelFlow2;
             }
             else if (is747) {
                 // Map Salty 747 vars to real vars
@@ -502,8 +516,8 @@ void CALLBACK MyDispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContex
             if (isA310) {
                 updateA310FromJetbridge(packet->data);
             }
-            else if (isA320) {
-                updateA320FromJetbridge(packet->data);
+            else if (isFbw) {
+                updateFbwFromJetbridge(packet->data);
             }
         }
         break;
@@ -962,9 +976,12 @@ void processRequest(int bytes)
 
         //// For testing only - Leave commented out
         //if (request.writeData.eventId == KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE) {
-        //    request.writeData.eventId = EVENT_RESET_DRONE_FOV;
+        //    request.writeData.eventId = KEY_FLAPS_INCR;
         //    request.writeData.value = 0;
         //    printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
+        //    printf("Flaps: %f\n", simVars.tfFlapsIndex);
+        //    readJetbridgeVar("L:A32NX_RMP_L_VHF2_STANDBY");
+        //    writeJetbridgeVar("K:FLAPS HANDLE INDEX, number", simVars.tfFlapsIndex + 1.0f);
         //}
         //else {
         //    printf("Unintercepted event: %d (%d) = %f\n", request.writeData.eventId, KEY_CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE, request.writeData.value);
@@ -1001,7 +1018,7 @@ void processRequest(int bytes)
         if (isA310 && jetbridgeA310ButtonPress(request.writeData.eventId, request.writeData.value)) {
             return;
         }
-        else if (isA320 && jetbridgeA320ButtonPress(request.writeData.eventId, request.writeData.value)) {
+        else if (isFbw && jetbridgeFbwButtonPress(request.writeData.eventId, request.writeData.value)) {
             return;
         }
         else if (isK100 && jetbridgeK100ButtonPress(request.writeData.eventId, request.writeData.value)) {

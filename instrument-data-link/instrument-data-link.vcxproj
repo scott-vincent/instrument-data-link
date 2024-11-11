@@ -188,7 +188,7 @@
     <ClInclude Include="jetbridge\Client.h" />
     <ClInclude Include="jetbridge\Protocol.h" />
     <ClInclude Include="LVars-A310.h" />
-    <ClInclude Include="LVars-A32NX.h" />
+    <ClInclude Include="LVars-Fbw.h" />
     <ClInclude Include="LVars-Kodiak100.h" />
     <ClInclude Include="LVars-PA28.h" />
     <ClInclude Include="simvarDefs.h" />

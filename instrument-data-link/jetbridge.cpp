@@ -4,7 +4,7 @@
 
 #include "jetbridge\client.h"
 #include "LVars-A310.h"
-#include "LVars-A32NX.h"
+#include "LVars-Fbw.h"
 #include "LVars-Kodiak100.h"
 #include "LVars-PA28.h"
 
@@ -12,7 +12,7 @@
 
 extern SimVars simVars;
 extern LVars_A310 a310Vars;
-extern LVars_A320 a320Vars;
+extern LVars_FBW fbwVars;
 extern WriteEvent WriteEvents[];
 
 jetbridge::Client* jetbridgeClient = 0;
@@ -66,7 +66,7 @@ void writeJetbridgeHvar(const char* var)
 #endif
 }
 
-void writeJetbridge_A32NX_CabinLights(double val)
+void writeJetbridge_Fbw_CabinLights(double val)
 {
     const char* rpnPotentiometer = "%f %d (>K:2:LIGHT_POTENTIOMETER_SET)";
     const int OVERHEAD_INTEG_LIGHT = 86;
@@ -220,16 +220,16 @@ void updateA310FromJetbridge(const char* data)
     }
 }
 
-void updateA320FromJetbridge(const char* data)
+void updateFbwFromJetbridge(const char* data)
 {
     if (strncmp(&data[1], A32NX_APU_MASTER_SW, sizeof(A32NX_APU_MASTER_SW) - 1) == 0) {
         simVars.apuMasterSw = atof(&data[sizeof(A32NX_APU_MASTER_SW) + 1]);
     }
     else if (strncmp(&data[1], A32NX_APU_START, sizeof(A32NX_APU_START) - 1) == 0) {
-        a320Vars.apuStart = atof(&data[sizeof(A32NX_APU_START) + 1]);
+        fbwVars.apuStart = atof(&data[sizeof(A32NX_APU_START) + 1]);
     }
     else if (strncmp(&data[1], A32NX_APU_START_AVAIL, sizeof(A32NX_APU_START_AVAIL) - 1) == 0) {
-        a320Vars.apuStartAvail = atof(&data[sizeof(A32NX_APU_START_AVAIL) + 1]);
+        fbwVars.apuStartAvail = atof(&data[sizeof(A32NX_APU_START_AVAIL) + 1]);
     }
     else if (strncmp(&data[1], A32NX_APU_BLEED, sizeof(A32NX_APU_BLEED) - 1) == 0) {
         simVars.apuBleed = atof(&data[sizeof(A32NX_APU_BLEED) + 1]);
@@ -241,34 +241,34 @@ void updateA320FromJetbridge(const char* data)
         simVars.elecBat2 = atof(&data[sizeof(A32NX_ELEC_BAT2) + 1]);
     }
     else if (strncmp(&data[1], A32NX_FLAPS_INDEX, sizeof(A32NX_FLAPS_INDEX) - 1) == 0) {
-        a320Vars.flapsIndex = atof(&data[sizeof(A32NX_FLAPS_INDEX) + 1]);
+        fbwVars.flapsIndex = atof(&data[sizeof(A32NX_FLAPS_INDEX) + 1]);
     }
     else if (strncmp(&data[1], A32NX_PARK_BRAKE_POS, sizeof(A32NX_PARK_BRAKE_POS) - 1) == 0) {
-        a320Vars.parkBrakePos = atof(&data[sizeof(A32NX_PARK_BRAKE_POS) + 1]);
+        fbwVars.parkBrakePos = atof(&data[sizeof(A32NX_PARK_BRAKE_POS) + 1]);
     }
     else if (strncmp(&data[1], A32NX_XPNDR_MODE, sizeof(A32NX_XPNDR_MODE) - 1) == 0) {
-        a320Vars.xpndrMode = atof(&data[sizeof(A32NX_XPNDR_MODE) + 1]);
+        fbwVars.xpndrMode = atof(&data[sizeof(A32NX_XPNDR_MODE) + 1]);
     }
     else if (strncmp(&data[1], A32NX_AUTOPILOT_1, sizeof(A32NX_AUTOPILOT_1) - 1) == 0) {
-        a320Vars.autopilot1 = atof(&data[sizeof(A32NX_AUTOPILOT_1) + 1]);
+        fbwVars.autopilot1 = atof(&data[sizeof(A32NX_AUTOPILOT_1) + 1]);
     }
     else if (strncmp(&data[1], A32NX_AUTOPILOT_2, sizeof(A32NX_AUTOPILOT_2) - 1) == 0) {
-        a320Vars.autopilot2 = atof(&data[sizeof(A32NX_AUTOPILOT_2) + 1]);
+        fbwVars.autopilot2 = atof(&data[sizeof(A32NX_AUTOPILOT_2) + 1]);
     }
     else if (strncmp(&data[1], A32NX_AUTOTHRUST, sizeof(A32NX_AUTOTHRUST) - 1) == 0) {
-        a320Vars.autothrust = atof(&data[sizeof(A32NX_AUTOTHRUST) + 1]);
+        fbwVars.autothrust = atof(&data[sizeof(A32NX_AUTOTHRUST) + 1]);
     }
     else if (strncmp(&data[1], A32NX_TCAS_MODE, sizeof(A32NX_TCAS_MODE) - 1) == 0) {
         simVars.jbTcasMode = atof(&data[sizeof(A32NX_TCAS_MODE) + 1]);
     }
     else if (strncmp(&data[1], A32NX_AUTOPILOT_HDG, sizeof(A32NX_AUTOPILOT_HDG) - 1) == 0) {
-        a320Vars.autopilotHeading = atof(&data[sizeof(A32NX_AUTOPILOT_HDG) + 1]);
+        fbwVars.autopilotHeading = atof(&data[sizeof(A32NX_AUTOPILOT_HDG) + 1]);
     }
     else if (strncmp(&data[1], A32NX_AUTOPILOT_VS, sizeof(A32NX_AUTOPILOT_VS) - 1) == 0) {
-        a320Vars.autopilotVerticalSpeed = atof(&data[sizeof(A32NX_AUTOPILOT_VS) + 1]);
+        fbwVars.autopilotVerticalSpeed = atof(&data[sizeof(A32NX_AUTOPILOT_VS) + 1]);
     }
     else if (strncmp(&data[1], A32NX_AUTOPILOT_FPA, sizeof(A32NX_AUTOPILOT_FPA) - 1) == 0) {
-        a320Vars.autopilotFpa = atof(&data[sizeof(A32NX_AUTOPILOT_FPA) + 1]);
+        fbwVars.autopilotFpa = atof(&data[sizeof(A32NX_AUTOPILOT_FPA) + 1]);
     }
     else if (strncmp(&data[1], A32NX_MANAGED_SPEED, sizeof(A32NX_MANAGED_SPEED) - 1) == 0) {
         simVars.jbManagedSpeed = atof(&data[sizeof(A32NX_MANAGED_SPEED) + 1]);
@@ -298,28 +298,31 @@ void updateA320FromJetbridge(const char* data)
         simVars.jbAutobrake = atof(&data[sizeof(A32NX_AUTOBRAKE) + 1]);
     }
     else if (strncmp(&data[1], A32NX_LEFT_BRAKEPEDAL, sizeof(A32NX_LEFT_BRAKEPEDAL) - 1) == 0) {
-        a320Vars.leftBrakePedal = atof(&data[sizeof(A32NX_LEFT_BRAKEPEDAL) + 1]);
+        fbwVars.leftBrakePedal = atof(&data[sizeof(A32NX_LEFT_BRAKEPEDAL) + 1]);
     }
     else if (strncmp(&data[1], A32NX_SPOILERS_HANDLE_POS, sizeof(A32NX_SPOILERS_HANDLE_POS) - 1) == 0) {
-        a320Vars.spoilersHandlePos = atof(&data[sizeof(A32NX_SPOILERS_HANDLE_POS) + 1]);
+        fbwVars.spoilersHandlePos = atof(&data[sizeof(A32NX_SPOILERS_HANDLE_POS) + 1]);
     }
     else if (strncmp(&data[1], A32NX_RIGHT_BRAKEPEDAL, sizeof(A32NX_RIGHT_BRAKEPEDAL) - 1) == 0) {
-        a320Vars.rightBrakePedal = atof(&data[sizeof(A32NX_RIGHT_BRAKEPEDAL) + 1]);
+        fbwVars.rightBrakePedal = atof(&data[sizeof(A32NX_RIGHT_BRAKEPEDAL) + 1]);
     }
     else if (strncmp(&data[1], A32NX_RUDDER_PEDAL_POS, sizeof(A32NX_RUDDER_PEDAL_POS) - 1) == 0) {
-        a320Vars.rudderPedalPos = atof(&data[sizeof(A32NX_RUDDER_PEDAL_POS) + 1]);
+        fbwVars.rudderPedalPos = atof(&data[sizeof(A32NX_RUDDER_PEDAL_POS) + 1]);
     }
     else if (strncmp(&data[1], A32NX_ENGINE_EGT1, sizeof(A32NX_ENGINE_EGT1) - 1) == 0) {
-        a320Vars.engineEgt1 = atof(&data[sizeof(A32NX_ENGINE_EGT1) + 1]);
+        fbwVars.engineEgt1 = atof(&data[sizeof(A32NX_ENGINE_EGT1) + 1]);
     }
     else if (strncmp(&data[1], A32NX_ENGINE_EGT2, sizeof(A32NX_ENGINE_EGT2) - 1) == 0) {
-        a320Vars.engineEgt2 = atof(&data[sizeof(A32NX_ENGINE_EGT2) + 1]);
+        fbwVars.engineEgt2 = atof(&data[sizeof(A32NX_ENGINE_EGT2) + 1]);
     }
     else if (strncmp(&data[1], A32NX_ENGINE_FUEL_FLOW1, sizeof(A32NX_ENGINE_FUEL_FLOW1) - 1) == 0) {
-        a320Vars.engineFuelFlow1 = atof(&data[sizeof(A32NX_ENGINE_FUEL_FLOW1) + 1]);
+        fbwVars.engineFuelFlow1 = atof(&data[sizeof(A32NX_ENGINE_FUEL_FLOW1) + 1]);
     }
     else if (strncmp(&data[1], A32NX_ENGINE_FUEL_FLOW2, sizeof(A32NX_ENGINE_FUEL_FLOW2) - 1) == 0) {
-        a320Vars.engineFuelFlow2 = atof(&data[sizeof(A32NX_ENGINE_FUEL_FLOW2) + 1]);
+        fbwVars.engineFuelFlow2 = atof(&data[sizeof(A32NX_ENGINE_FUEL_FLOW2) + 1]);
+    }
+    else if (strncmp(data, "write", 5) != 0) {
+        printf("Uknown Fbw from Jetbridge: %s\n", data);
     }
 }
 
@@ -482,7 +485,7 @@ bool jetbridgeA310ButtonPress(int eventId, double value)
     return false;
 }
 
-bool jetbridgeA320ButtonPress(int eventId, double value)
+bool jetbridgeFbwButtonPress(int eventId, double value)
 {
     switch (eventId) {
     case KEY_APU_OFF_SWITCH:
@@ -496,9 +499,11 @@ bool jetbridgeA320ButtonPress(int eventId, double value)
         return true;
     case KEY_ELEC_BAT1:
         writeJetbridgeVar(A32NX_ELEC_BAT1, value);
+        writeJetbridgeVar(A32NX_ELEC_BAT_ESS, value);
         return true;
     case KEY_ELEC_BAT2:
         writeJetbridgeVar(A32NX_ELEC_BAT2, value);
+        writeJetbridgeVar(A32NX_ELEC_BAT_APU, value);
         return true;
     case KEY_AUTOBRAKE:
         writeJetbridgeVar(A32NX_AUTOBRAKE, value);
@@ -510,7 +515,7 @@ bool jetbridgeA320ButtonPress(int eventId, double value)
         writeJetbridgeVar(A32NX_TCAS_SWITCH, value * 2);
         return true;
     case KEY_CABIN_LIGHTS_SET:
-        writeJetbridge_A32NX_CabinLights(value);
+        writeJetbridge_Fbw_CabinLights(value);
         return true;
     case KEY_AP_ALT_VAR_SET_ENGLISH:
         writeJetbridgeVar(A32NX_FCU_ALT_INCREMENT_SET, 100);
@@ -604,7 +609,7 @@ void readA310Jetbridge()
     readJetbridgeVar(A310_ILS_COURSE);
 }
 
-void readA320Jetbridge()
+void readFbwJetbridge()
 {
     readJetbridgeVar(A32NX_APU_MASTER_SW);
     readJetbridgeVar(A32NX_APU_START);
