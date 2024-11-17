@@ -62,6 +62,11 @@ int g1000ButtonVal[20];
 time_t clrPress = 0;
 JOYCAPSA joyCaps;
 JOYINFOEX joyInfo;
+HWND pfdWin = NULL;
+HWND mfdWin = NULL;
+WINDOWINFO pfdInfo;
+WINDOWINFO mfdInfo;
+bool g1000IsPrimary = false;
 #endif
 
 enum FLIGHT_PHASE {
@@ -980,7 +985,6 @@ void processRequest(int bytes)
         //    request.writeData.value = 0;
         //    printf("Intercepted event - Changed to: %d = %f\n", request.writeData.eventId, request.writeData.value);
         //    printf("Flaps: %f\n", simVars.tfFlapsIndex);
-        //    readJetbridgeVar("L:A32NX_RMP_L_VHF2_STANDBY");
         //    writeJetbridgeVar("K:FLAPS HANDLE INDEX, number", simVars.tfFlapsIndex + 1.0f);
         //}
         //else {
@@ -1189,6 +1193,7 @@ void server()
     timeout.tv_usec = 500000;
 
     while (!quit) {
+        picoRefresh();      // DELETE ME
         fd_set fds;
         FD_ZERO(&fds);
         FD_SET(sockfd, &fds);
@@ -1504,20 +1509,20 @@ void g1000Encoder(int lowerDiff, int upperDiff, int zoomDiff)
 
     if (lowerDiff != 0) {
         if (lowerDiff > 0) {
-            eventId = HVAR_G1000_MFD_LOWER_INC;
+            if (g1000IsPrimary) eventId = HVAR_G1000_PFD_LOWER_INC; else eventId = HVAR_G1000_MFD_LOWER_INC;
         }
         else {
-            eventId = HVAR_G1000_MFD_LOWER_DEC;
+            if (g1000IsPrimary) eventId = HVAR_G1000_PFD_LOWER_DEC; else eventId = HVAR_G1000_MFD_LOWER_DEC;
         }
         writeJetbridgeHvar(WriteEvents[eventId].name);
     }
 
     if (upperDiff != 0) {
         if (upperDiff > 0) {
-            eventId = HVAR_G1000_MFD_UPPER_INC;
+            if (g1000IsPrimary) eventId = HVAR_G1000_PFD_UPPER_INC; else eventId = HVAR_G1000_MFD_UPPER_INC;
         }
         else {
-            eventId = HVAR_G1000_MFD_UPPER_DEC;
+            if (g1000IsPrimary) eventId = HVAR_G1000_PFD_UPPER_DEC; else eventId = HVAR_G1000_MFD_UPPER_DEC;
         }
         writeJetbridgeHvar(WriteEvents[eventId].name);
     }
@@ -1533,34 +1538,88 @@ void g1000Encoder(int lowerDiff, int upperDiff, int zoomDiff)
     }
 }
 
+void g1000SwapWindows()
+{
+    for (HWND hwnd = GetTopWindow(NULL); hwnd != NULL; hwnd = GetNextWindow(hwnd, GW_HWNDNEXT))
+    {
+        if (!IsWindowVisible(hwnd))
+            continue;
+
+        char title[256];
+        int len = GetWindowText(hwnd, title, 256);
+        if (len == 0)
+            continue;
+
+        if (strcmp(title, "AS1000_PFD") == 0) {
+            pfdInfo.cbSize = sizeof(WINDOWINFO);
+            if (GetWindowInfo(hwnd, &pfdInfo)) {
+                pfdWin = hwnd;
+            }
+        }
+        else if (strcmp(title, "AS1000_MFD") == 0) {
+            mfdInfo.cbSize = sizeof(WINDOWINFO);
+            if (GetWindowInfo(hwnd, &mfdInfo)) {
+                mfdWin = hwnd;
+            }
+        }
+    }
+
+    if (!pfdWin || !mfdWin)
+        return;
+
+    WINDOWINFO tempInfo;
+    memcpy(&tempInfo, &pfdInfo, sizeof(WINDOWINFO));
+    memcpy(&pfdInfo, &mfdInfo, sizeof(WINDOWINFO));
+    memcpy(&mfdInfo, &tempInfo, sizeof(WINDOWINFO));
+
+    UINT flags = SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER;
+    SetWindowPos(pfdWin, NULL, pfdInfo.rcWindow.left, pfdInfo.rcWindow.top, pfdInfo.rcWindow.right - pfdInfo.rcWindow.left, pfdInfo.rcWindow.bottom - pfdInfo.rcWindow.top, flags);
+    SetWindowPos(mfdWin, NULL, mfdInfo.rcWindow.left, mfdInfo.rcWindow.top, mfdInfo.rcWindow.right - mfdInfo.rcWindow.left, mfdInfo.rcWindow.bottom - mfdInfo.rcWindow.top, flags);
+
+    g1000IsPrimary = pfdInfo.rcWindow.top > -100;
+}
+
 void g1000EncoderPush(int num)
 {
     EVENT_ID eventId;
     if (num == 0) {
-        eventId = HVAR_G1000_MFD_PUSH;
+        if (g1000IsPrimary) eventId = HVAR_G1000_PFD_PUSH; else eventId = HVAR_G1000_MFD_PUSH;
+        writeJetbridgeHvar(WriteEvents[eventId].name);
     }
     else {
-        eventId = HVAR_G1000_MFD_JOYSTICK_PUSH;
+        g1000SwapWindows();
     }
-    writeJetbridgeHvar(WriteEvents[eventId].name);
 }
 
 void g1000SoftkeyPush(int num)
 {
-    int eventNum = HVAR_G1000_MFD_SOFTKEY_1 + num;
+    int eventNum;
+    if (g1000IsPrimary) eventNum = HVAR_G1000_PFD_SOFTKEY_1 + num; else eventNum = HVAR_G1000_MFD_SOFTKEY_1 + num;
     writeJetbridgeHvar(WriteEvents[eventNum].name);
 }
 
 void g1000ButtonPush(int num)
 {
     EVENT_ID eventId;
-    switch (num) {
+    if (g1000IsPrimary) {
+        switch (num) {
+        case 0: eventId = HVAR_G1000_PFD_DIRECTTO; break;
+        case 1: eventId = HVAR_G1000_PFD_MENU; break;
+        case 2: eventId = HVAR_G1000_PFD_FPL; break;
+        case 3: eventId = HVAR_G1000_PFD_PROC; break;
+        case 4: eventId = HVAR_G1000_PFD_CLR; break;
+        default: eventId = HVAR_G1000_PFD_ENT; break;
+        }
+    }
+    else {
+        switch (num) {
         case 0: eventId = HVAR_G1000_MFD_DIRECTTO; break;
         case 1: eventId = HVAR_G1000_MFD_MENU; break;
         case 2: eventId = HVAR_G1000_MFD_FPL; break;
         case 3: eventId = HVAR_G1000_MFD_PROC; break;
         case 4: eventId = HVAR_G1000_MFD_CLR; break;
         default: eventId = HVAR_G1000_MFD_ENT; break;
+        }
     }
     writeJetbridgeHvar(WriteEvents[eventId].name);
 }
