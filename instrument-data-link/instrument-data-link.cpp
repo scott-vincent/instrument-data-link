@@ -1193,7 +1193,6 @@ void server()
     timeout.tv_usec = 500000;
 
     while (!quit) {
-        picoRefresh();      // DELETE ME
         fd_set fds;
         FD_ZERO(&fds);
         FD_SET(sockfd, &fds);
