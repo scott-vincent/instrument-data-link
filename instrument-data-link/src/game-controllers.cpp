@@ -66,7 +66,7 @@ static void joyInit(int id)
     }
 }
 
-static void joyRefresh(int id)
+void joyRefresh(int id)
 {
     JOYINFOEX joyInfo;
     joyInfo.dwSize = sizeof(joyInfo);

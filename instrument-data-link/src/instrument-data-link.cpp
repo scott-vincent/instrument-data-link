@@ -1304,14 +1304,20 @@ void picoRefresh()
         picoInitialised = true;
     }
 
-    refreshJoysticks();
+    if (switchboxId >= 0 && joystick[switchboxId].initialised) {
+        joyRefresh(switchboxId);
 
-    if (switchboxId >= 0 && joystick[switchboxId].zeroed) {
-        switchboxRefresh();
+        if (joystick[switchboxId].zeroed) {
+            switchboxRefresh();
+        }
     }
 
-    if (g1000Id >= 0 && joystick[g1000Id].zeroed) {
-        g1000Refresh();
+    if (g1000Id >= 0 && joystick[g1000Id].initialised) {
+        joyRefresh(g1000Id);
+
+        if (joystick[g1000Id].zeroed) {
+            g1000Refresh();
+        }
     }
 }
 

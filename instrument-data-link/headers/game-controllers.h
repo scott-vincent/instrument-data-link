@@ -18,3 +18,4 @@ struct Joystick
 
 void initJoysticks();
 void refreshJoysticks();
+void joyRefresh(int id);
