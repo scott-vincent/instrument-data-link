@@ -51,9 +51,11 @@ void g1000ButtonPush(int);
 bool picoInitialised = false;
 int switchboxId = -1;
 int g1000Id = -1;
+int alphaId = -1;
 extern Joystick joystick[MaxJoysticks];
 int g1000Axis[3];
 int g1000Button[20];
+int ignitionOff = 0;
 
 bool modeChange = false;
 time_t clrPress = 0;
@@ -1282,6 +1284,18 @@ void picoInit()
 
     initJoysticks();
 
+    for (int id = 0; id < 16; id++) {
+        if (strcmp(joystick[id].name, "Pico Switchbox") == 0 && joystick[id].initialised) {
+            switchboxId = id;
+        }
+        else if (strcmp(joystick[id].name, "Pico G1000") == 0 && joystick[id].initialised) {
+            g1000Id = id;
+        }
+        else if (strncmp(joystick[id].name, "Alpha", 4) == 0 && joystick[id].initialised) {
+            alphaId = id;
+        }
+    }
+
     if (switchboxId >= 0) {
         printf("Found Pico Switchbox joystick id %d\n", switchboxId);
     }
@@ -1295,6 +1309,13 @@ void picoInit()
     else {
         printf("No Pico G1000 connected\n");
     }
+
+    if (alphaId >= 0) {
+        printf("Found Alpha Flight Controls joystick id %d\n", alphaId);
+    }
+    else {
+        printf("No Alpha Flight Controls connected\n");
+    }
 }
 
 void picoRefresh()
@@ -1304,7 +1325,7 @@ void picoRefresh()
         picoInitialised = true;
     }
 
-    if (switchboxId >= 0 && joystick[switchboxId].initialised) {
+    if (switchboxId >= 0) {
         joyRefresh(switchboxId);
 
         if (joystick[switchboxId].zeroed) {
@@ -1312,11 +1333,26 @@ void picoRefresh()
         }
     }
 
-    if (g1000Id >= 0 && joystick[g1000Id].initialised) {
+    if (g1000Id >= 0) {
         joyRefresh(g1000Id);
 
         if (joystick[g1000Id].zeroed) {
             g1000Refresh();
+        }
+    }
+
+    if (alphaId >= 0) {
+        joyRefresh(alphaId);
+
+        // Button 30 is held down when ignition switch is set to off. Convert this to a
+        // brief press of vJoy button 1 so that our secondary ignition switch still works.
+        if (ignitionOff != joystick[alphaId].button[30]) {
+            ignitionOff = joystick[alphaId].button[30];
+            if (ignitionOff == 2) {
+#ifdef vJoyFallback
+                vJoyButtonPress(VJOY_BUTTON_1);
+#endif
+            }
         }
     }
 }

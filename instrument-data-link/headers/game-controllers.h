@@ -1,5 +1,5 @@
 const int MaxJoysticks = 16;
-const int MaxAxes = 8;
+const int MaxAxes = 6;
 const int MaxButtons = 32;
 
 struct Joystick

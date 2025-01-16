@@ -5,9 +5,6 @@
 #include <regstr.h>
 #include "game-controllers.h"
 
-extern int switchboxId;
-extern int g1000Id;
-
 Joystick joystick[MaxJoysticks];
 
 static char* getOem(int vid, int pid)
@@ -30,6 +27,22 @@ static char* getOem(int vid, int pid)
     return oemName;
 }
 
+static int getAxisVal(int axisNum, JOYINFOEX* joyInfo)
+{
+    int axisVal = 0;
+
+    switch (axisNum) {
+    case 0: axisVal = joyInfo->dwXpos; break;
+    case 1: axisVal = joyInfo->dwYpos; break;
+    case 2: axisVal = joyInfo->dwZpos; break;
+    case 3: axisVal = joyInfo->dwRpos; break;
+    case 4: axisVal = joyInfo->dwUpos; break;
+    case 5: axisVal = joyInfo->dwVpos; break;
+    }
+
+    return axisVal;
+}
+
 static void joyInit(int id)
 {
     JOYINFOEX joyInfo;
@@ -45,15 +58,7 @@ static void joyInit(int id)
     joystick[id].initialised = true;
 
     for (int i = 0; i < joystick[id].axisCount; i++) {
-        double axisVal;
-        switch (i) {
-        case 0: axisVal = joyInfo.dwXpos; break;
-        case 1: axisVal = joyInfo.dwYpos; break;
-        case 2: axisVal = joyInfo.dwZpos; break;
-        case 3: axisVal = joyInfo.dwRpos; break;
-        }
-
-        joystick[id].axisZero[i] = axisVal;
+        joystick[id].axisZero[i] = getAxisVal(i, &joyInfo);
         joystick[id].axis[i] = 0;
 
         if (joystick[id].zeroed) {
@@ -98,15 +103,7 @@ void joyRefresh(int id)
 
     if (!joystick[id].zeroed) {
         for (int i = 0; i < joystick[id].axisCount; i++) {
-            double axisVal;
-            switch (i) {
-            case 0: axisVal = joyInfo.dwXpos; break;
-            case 1: axisVal = joyInfo.dwYpos; break;
-            case 2: axisVal = joyInfo.dwZpos; break;
-            case 3: axisVal = joyInfo.dwRpos; break;
-            }
-
-            if (joystick[id].axisZero[i] != axisVal) {
+            if (joystick[id].axisZero[i] != getAxisVal(i, &joyInfo)) {
                 joystick[id].zeroed = true;
                 joyInit(id);
                 break;
@@ -116,15 +113,7 @@ void joyRefresh(int id)
 
     if (joystick[id].zeroed) {
         for (int i = 0; i < joystick[id].axisCount; i++) {
-            double axisVal;
-            switch (i) {
-            case 0: axisVal = joyInfo.dwXpos; break;
-            case 1: axisVal = joyInfo.dwYpos; break;
-            case 2: axisVal = joyInfo.dwZpos; break;
-            case 3: axisVal = joyInfo.dwRpos; break;
-            }
-
-            double newVal = axisVal - joystick[id].axisZero[i];
+            int newVal = getAxisVal(i, &joyInfo) - joystick[id].axisZero[i];
             if (joystick[id].axis[i] != newVal) {
                 joystick[id].axis[i] = newVal;
                 //printf("%s axis %d = %d\n", joystick[id].name, i, joystick[id].axis[i]);
@@ -150,26 +139,17 @@ void initJoysticks()
         joystick[id].axisCount = joyCaps.wNumAxes;
         joystick[id].buttonCount = joyCaps.wNumButtons;
 
-        // Only interested in Pico devices
-        bool isPico = false;
-        if (joystick[id].mid == 0x239a && joystick[id].pid == 0x80f4) {
-            isPico = true;
+        if (strncmp(joystick[id].name, "CircuitPython", 13) == 0) {
             if (joystick[id].axisCount == 3) {
                 strcpy(joystick[id].name, "Pico G1000");
-                g1000Id = id;
             }
             else {
                 strcpy(joystick[id].name, "Pico Switchbox");
-                switchboxId = id;
             }
         }
 
         //printf("%d: %s (%04x, %04x) has %d axes and %d buttons\n",
         //    id, joystick[id].name, joystick[id].mid, joystick[id].pid, joystick[id].axisCount, joystick[id].buttonCount);
-
-        if (!isPico) {
-            continue;
-        }
 
         if (joystick[id].axisCount > MaxAxes) {
             printf("  Axes count exceeds maximum so reduced to %d\n", MaxAxes);
