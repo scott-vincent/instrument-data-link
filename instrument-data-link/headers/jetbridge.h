@@ -16,7 +16,7 @@
 
 #ifdef jetbridgeFallback
 
-#include "jetbridge\client.h"
+#include "..\jetbridge\Client.h"
 
 const char DRONE_CAMERA_FOV[] = "A:DRONE CAMERA FOV, percent";
 

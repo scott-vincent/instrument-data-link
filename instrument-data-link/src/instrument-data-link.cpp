@@ -37,8 +37,7 @@ long networkOut;
 #define PICO_USB
 
 #ifdef PICO_USB
-#include <Mmsystem.h>
-#include <joystickapi.h>
+#include "game-controllers.h"
 
 void picoInit();
 void picoRefresh();
@@ -49,19 +48,15 @@ void g1000EncoderPush(int);
 void g1000SoftkeyPush(int);
 void g1000ButtonPush(int);
 
+bool picoInitialised = false;
 int switchboxId = -1;
 int g1000Id = -1;
-int joystickRetry = 5;
-bool switchboxZeroed = false;
-double switchboxZeroPos[4];
-bool g1000Zeroed = false;
-double g1000ZeroPos[3];
+extern Joystick joystick[MaxJoysticks];
+int g1000Axis[3];
+int g1000Button[20];
+
 bool modeChange = false;
-double g1000EncoderVal[3];
-int g1000ButtonVal[20];
 time_t clrPress = 0;
-JOYCAPSA joyCaps;
-JOYINFOEX joyInfo;
 HWND pfdWin = NULL;
 HWND mfdWin = NULL;
 WINDOWINFO pfdInfo;
@@ -1277,226 +1272,143 @@ void picoInit()
 
     simVars.sbParkBrake = -1;
 
-    JOYCAPSA joyCaps;
-    int joystickId;
-
-    for (joystickId = 0; joystickId < 16; joystickId++) {
-        MMRESULT res = joyGetDevCaps(joystickId, &joyCaps, sizeof(joyCaps));
-        if (res != JOYERR_NOERROR) {
-            continue;
-        }
-
-        // Pico Switchbox has 4 axes and 10 buttons (includes 4 buttons for clickable encoders + park brake button + a dummy refresh button)
-        if (switchboxId < 0 && joyCaps.wNumAxes == 4 && joyCaps.wNumButtons == 10) {
-            switchboxId = joystickId;
-            printf("Found Pico Switchbox joystick id %d\n", switchboxId);
-        }
-
-        // Pico G1000 has 3 axes and 21 buttons
-        if (g1000Id < 0 && joyCaps.wNumAxes == 3 && joyCaps.wNumButtons == 21) {
-            g1000Id = joystickId;
-            printf("Found Pico G1000 joystick id %d\n", g1000Id);
-        }
+    for (int i = 0; i < 3; i++) {
+        g1000Axis[i] = 0;
     }
 
-    if (switchboxId >= 0 and g1000Id >= 0) {
-        joystickRetry = 0;
+    for (int i = 0; i < 20; i++) {
+        g1000Button[i] = 0;
     }
-    else if (joystickRetry > 0) {
-        joystickRetry--;
+
+    initJoysticks();
+
+    if (switchboxId >= 0) {
+        printf("Found Pico Switchbox joystick id %d\n", switchboxId);
     }
     else {
-        if (switchboxId < 0) {
-            printf("No Pico Switchbox connected\n");
-        }
+        printf("No Pico Switchbox connected\n");
+    }
 
-        if (g1000Id < 0) {
-            printf("No Pico G1000 connected\n");
-        }
+    if (g1000Id >= 0) {
+        printf("Found Pico G1000 joystick id %d\n", g1000Id);
+    }
+    else {
+        printf("No Pico G1000 connected\n");
     }
 }
 
 void picoRefresh()
 {
-    if (joystickRetry > 0) {
+    if (!picoInitialised) {
         picoInit();
+        picoInitialised = true;
     }
 
-    if (switchboxId >= 0) {
+    refreshJoysticks();
+
+    if (switchboxId >= 0 && joystick[switchboxId].zeroed) {
         switchboxRefresh();
     }
 
-    if (g1000Id >= 0) {
+    if (g1000Id >= 0 && joystick[g1000Id].zeroed) {
         g1000Refresh();
     }
 }
 
 void switchboxRefresh()
 {
-    JOYINFOEX joyInfo;
-    joyInfo.dwSize = sizeof(joyInfo);
-    joyInfo.dwFlags = JOY_RETURNALL;
-    joyInfo.dwButtons = 0xffffffffl;
-
-    MMRESULT res = joyGetPosEx(switchboxId, &joyInfo);
-    if (res != JOYERR_NOERROR) {
-        return;
+    // Set simvars
+    for (int i = 0; i < 4; i++) {
+        simVars.sbEncoder[i] = joystick[switchboxId].axis[i];
     }
 
-    // First set of data with button 9 pressed (refresh button) will zeroise all axes
-    if (!switchboxZeroed && joyInfo.dwButtons == (1 << 9)) {
-        switchboxZeroPos[0] = joyInfo.dwXpos;
-        switchboxZeroPos[1] = joyInfo.dwYpos;
-        switchboxZeroPos[2] = joyInfo.dwZpos;
-        switchboxZeroPos[3] = joyInfo.dwRpos;
-        switchboxZeroed = true;
+    for (int i = 0; i < 7; i++) {
+        simVars.sbButton[i] = joystick[switchboxId].button[i];
     }
 
-    if (switchboxZeroed) {
-        // Set simvars
-        simVars.sbEncoder[0] = joyInfo.dwXpos - switchboxZeroPos[0];
-        simVars.sbEncoder[1] = joyInfo.dwYpos - switchboxZeroPos[1];
-        simVars.sbEncoder[2] = joyInfo.dwZpos - switchboxZeroPos[2];
-        simVars.sbEncoder[3] = joyInfo.dwRpos - switchboxZeroPos[3];
+    // Mode button
+    bool button7 = joystick[switchboxId].button[7] == 2;
 
-        //printf("Switchbox Axes 0=%.0f, 1=%.0f, 2=%.0f, 3=%.0f\n", simVars.sbEncoder[0], simVars.sbEncoder[1], simVars.sbEncoder[2], simVars.sbEncoder[3]);
+    // Park Brake
+    simVars.sbParkBrake = joystick[switchboxId].button[8] == 2;
 
-        // Buttons need to be set to 2 if pressed or 1 if released
-        int mask = 1;
-        for (int i = 0; i < 7; i++) {
-            simVars.sbButton[i] = 1 + ((joyInfo.dwButtons & mask) > 0);
-            mask = mask << 1;
-
-            //if (simVars.sbButton[i] == 2) {
-            //    printf("Pico Switchbox button %d pressed\n", i);
-            //}
+    // Check for mode button press (plays a sound when switched)
+    if (button7 && !modeChange) {
+        modeChange = true;
+        if (simVars.sbMode > 3) {
+            simVars.sbMode = 1;
+        }
+        else {
+            simVars.sbMode++;
         }
 
-        // Mode button
-        double button7 = (joyInfo.dwButtons & (1 << 7)) > 0;
-        //if (button7) {
-        //    printf("Pico Switchbox mode button pressed\n");
-        //}
-
-        // Park Brake
-        simVars.sbParkBrake = (joyInfo.dwButtons & (1 << 8)) > 0;
-        //if (simVars.sbParkBrake) {
-        //    printf("Pico Switchbox Park Brake on\n");
-        //}
-
-        // Check for mode button press (plays a sound when switched)
-        if (button7 && !modeChange) {
-            modeChange = true;
-            if (simVars.sbMode > 3) {
-                simVars.sbMode = 1;
-            }
-            else {
-                simVars.sbMode++;
-            }
-
-            char soundFile[50];
-            switch (int(simVars.sbMode)) {
-                case 2: strcpy(soundFile, "Sounds\\Switchbox Radio.wav"); break;
-                case 3: strcpy(soundFile, "Sounds\\Switchbox Instruments.wav"); break;
-                case 4: strcpy(soundFile, "Sounds\\Switchbox Navigation.wav"); break;
-                default: strcpy(soundFile, "Sounds\\Switchbox Autopilot.wav"); break;
-            }
-
-            PlaySound(soundFile, NULL, SND_FILENAME | SND_ASYNC);
+        char soundFile[50];
+        switch (int(simVars.sbMode)) {
+            case 2: strcpy(soundFile, "Sounds\\Switchbox Radio.wav"); break;
+            case 3: strcpy(soundFile, "Sounds\\Switchbox Instruments.wav"); break;
+            case 4: strcpy(soundFile, "Sounds\\Switchbox Navigation.wav"); break;
+            default: strcpy(soundFile, "Sounds\\Switchbox Autopilot.wav"); break;
         }
 
-        // Check for mode button release
-        if (modeChange && !button7) {
-            modeChange = false;
-        }
+        PlaySound(soundFile, NULL, SND_FILENAME | SND_ASYNC);
+    }
+
+    // Check for mode button release
+    if (modeChange && !button7) {
+        modeChange = false;
     }
 }
 
 void g1000Refresh()
 {
-    JOYINFOEX joyInfo;
-    joyInfo.dwSize = sizeof(joyInfo);
-    joyInfo.dwFlags = JOY_RETURNALL;
-    joyInfo.dwButtons = 0xffffffffl;
-
-    MMRESULT res = joyGetPosEx(g1000Id, &joyInfo);
-    if (res != JOYERR_NOERROR) {
-        return;
-    }
-
-    // First set of data with button 20 pressed (refresh button) will zeroise all axes
-    if (!g1000Zeroed && joyInfo.dwButtons == (1 << 20)) {
-        g1000ZeroPos[0] = joyInfo.dwXpos;
-        g1000ZeroPos[1] = joyInfo.dwYpos;
-        g1000ZeroPos[2] = joyInfo.dwZpos;
-        g1000Zeroed = true;
-
-        g1000EncoderVal[0] = 0;
-        g1000EncoderVal[1] = 0;
-        g1000EncoderVal[2] = 0;
-
-        for (int i = 0; i < 20; i++) {
-            g1000ButtonVal[i] = 1;
-        }
-    }
-
-    if (g1000Zeroed) {
-        double lower = joyInfo.dwXpos - g1000ZeroPos[0];
-        double upper = joyInfo.dwYpos - g1000ZeroPos[1];
-        double zoom = joyInfo.dwZpos - g1000ZeroPos[2];
-
-        //printf("G1000 Axes 0=%.0f, 1=%.0f, 2=%.0f\n", lower, upper, zoom);
-
-        // Passes 0 if no change, > 0 if turned clockwise and < 0 if turned anti-clockwise
-        g1000Encoder(lower - g1000EncoderVal[0], upper - g1000EncoderVal[1], zoom - g1000EncoderVal[2]);
+    // Passes 0 if no change, > 0 if turned clockwise and < 0 if turned anti-clockwise
+    g1000Encoder(joystick[g1000Id].axis[0] - g1000Axis[0], joystick[g1000Id].axis[1] - g1000Axis[1], joystick[g1000Id].axis[2] - g1000Axis[2]);
         
-        g1000EncoderVal[0] = lower;
-        g1000EncoderVal[1] = upper;
-        g1000EncoderVal[2] = zoom;
+    g1000Axis[0] = joystick[g1000Id].axis[0];
+    g1000Axis[1] = joystick[g1000Id].axis[1];
+    g1000Axis[2] = joystick[g1000Id].axis[2];
 
-        int mask = 1;
-        for (int i = 0; i < 20; i++) {
-            // Buttons need to be set to 2 if pressed or 1 if released
-            int buttonVal = 1 + ((joyInfo.dwButtons & mask) > 0);
-            mask = mask << 1;
-
-            // Has button state changed?
-            if (buttonVal == g1000ButtonVal[i]) {
-                // Check for CLR long press
-                if (i == 18 && buttonVal == 2 && clrPress > 0) {
-                    time_t now;
-                    time(&now);
-                    if (now - clrPress > 1) {
-                        writeJetbridgeHvar(WriteEvents[HVAR_G1000_PFD_CLR_LONG].name);
-                        clrPress = 0;
-                    }
+    for (int i = 0; i < 20; i++) {
+        // If button state hasn't changed check for CLR long press
+        if (joystick[g1000Id].button[i] == g1000Button[i]) {
+            if (i == 18 && joystick[g1000Id].button[i] == 2 && clrPress > 0) {
+                time_t now;
+                time(&now);
+                if (now - clrPress > 1) {
+                    writeJetbridgeHvar(WriteEvents[HVAR_G1000_PFD_CLR_LONG].name);
+                    clrPress = 0;
                 }
-                continue;
             }
+            continue;
+        }
 
-            g1000ButtonVal[i] = buttonVal;
+        // Button state has changed
+        g1000Button[i] = joystick[g1000Id].button[i];
 
-            // Has button been pressed?
-            if (buttonVal == 2) {
-                if (i < 2) {
-                    // Encoder click x 2
-                    g1000EncoderPush(i);
+        if (g1000Button[i] == 2) {
+            // Button has been pressed
+            if (i < 2) {
+                // Encoder click x 2
+                g1000EncoderPush(i);
+            }
+            else if (i < 14) {
+                // Softkey x 12
+                g1000SoftkeyPush(i - 2);
+            }
+            else {
+                // Button x 6
+                g1000ButtonPush(i - 14);
+
+                // If CLR button save time pressed
+                if (i == 18) {
+                    time(&clrPress);
                 }
-                else if (i < 14) {
-                    // Softkey x 12
-                    g1000SoftkeyPush(i - 2);
-                }
-                else {
-                    // Button x 6
-                    g1000ButtonPush(i - 14);
-                    // If CLR button save time pressed
-                    if (i == 18) {
-                        time(&clrPress);
-                    }
-                    else {
-                        clrPress = 0;
-                    }
-                }
+            }
+        }
+        else {
+            // Button has been released
+            if (i == 18) {
+                clrPress = 0;
             }
         }
     }

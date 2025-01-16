@@ -93,6 +93,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <DisableSpecificWarnings>26812</DisableSpecificWarnings>
+      <AdditionalIncludeDirectories>headers;$(MSFS_SDK)\SimConnect SDK\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -115,6 +116,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <DisableSpecificWarnings>26812</DisableSpecificWarnings>
+      <AdditionalIncludeDirectories>headers;C:\MSFS SDK\SimConnect SDK\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -138,6 +140,7 @@
       <ConformanceMode>true</ConformanceMode>
       <DisableSpecificWarnings>26812</DisableSpecificWarnings>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <AdditionalIncludeDirectories>headers;$(MSFS_SDK)\SimConnect SDK\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -160,6 +163,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <DisableSpecificWarnings>26812</DisableSpecificWarnings>
+      <AdditionalIncludeDirectories>headers;$(MSFS_SDK)\SimConnect SDK\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -176,23 +180,25 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="instrument-data-link.cpp" />
-    <ClCompile Include="jetbridge.cpp" />
+    <ClCompile Include="src\game-controllers.cpp" />
+    <ClCompile Include="src\instrument-data-link.cpp" />
     <ClCompile Include="jetbridge\Client.cpp" />
     <ClCompile Include="jetbridge\Protocol.cpp" />
-    <ClCompile Include="simvarDefs.cpp" />
-    <ClCompile Include="vjoy.cpp" />
+    <ClCompile Include="src\jetbridge.cpp" />
+    <ClCompile Include="src\simvarDefs.cpp" />
+    <ClCompile Include="src\vjoy.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="jetbridge.h" />
+    <ClInclude Include="headers\game-controllers.h" />
+    <ClInclude Include="headers\jetbridge.h" />
     <ClInclude Include="jetbridge\Client.h" />
     <ClInclude Include="jetbridge\Protocol.h" />
-    <ClInclude Include="LVars-A310.h" />
-    <ClInclude Include="LVars-Fbw.h" />
-    <ClInclude Include="LVars-Kodiak100.h" />
-    <ClInclude Include="LVars-PA28.h" />
-    <ClInclude Include="simvarDefs.h" />
-    <ClInclude Include="vjoy.h" />
+    <ClInclude Include="headers\LVars-A310.h" />
+    <ClInclude Include="headers\LVars-Fbw.h" />
+    <ClInclude Include="headers\LVars-Kodiak100.h" />
+    <ClInclude Include="headers\LVars-PA28.h" />
+    <ClInclude Include="headers\simvarDefs.h" />
+    <ClInclude Include="headers\vjoy.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="C:\MSFS SDK\SimConnect SDK\VS\SimConnectClient-static.props" />

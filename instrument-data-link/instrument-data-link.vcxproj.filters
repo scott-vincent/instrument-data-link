@@ -1,31 +1,59 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="instrument-data-link.cpp" />
-    <ClCompile Include="simvarDefs.cpp" />
     <ClCompile Include="jetbridge\Client.cpp">
       <Filter>Jetbridge</Filter>
     </ClCompile>
     <ClCompile Include="jetbridge\Protocol.cpp">
       <Filter>Jetbridge</Filter>
     </ClCompile>
-    <ClCompile Include="jetbridge.cpp" />
-    <ClCompile Include="vjoy.cpp" />
+    <ClCompile Include="src\instrument-data-link.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\simvarDefs.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vjoy.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\game-controllers.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\jetbridge.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="simvarDefs.h" />
     <ClInclude Include="jetbridge\Client.h">
       <Filter>Jetbridge</Filter>
     </ClInclude>
     <ClInclude Include="jetbridge\Protocol.h">
       <Filter>Jetbridge</Filter>
     </ClInclude>
-    <ClInclude Include="LVars-A310.h" />
-    <ClInclude Include="LVars-Kodiak100.h" />
-    <ClInclude Include="jetbridge.h" />
-    <ClInclude Include="vjoy.h" />
-    <ClInclude Include="LVars-PA28.h" />
-    <ClInclude Include="LVars-Fbw.h" />
+    <ClInclude Include="headers\jetbridge.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\LVars-A310.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\LVars-Fbw.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\LVars-Kodiak100.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\LVars-PA28.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\simvarDefs.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\vjoy.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\game-controllers.h">
+      <Filter>headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="C:\MSFS SDK\SimConnect SDK\VS\SimConnectClient-static.props" />
@@ -33,6 +61,12 @@
   <ItemGroup>
     <Filter Include="Jetbridge">
       <UniqueIdentifier>{43b308f5-d220-472b-8b64-866564fadcc3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers">
+      <UniqueIdentifier>{73ec6133-d181-49f3-832a-e6adb6bc14ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{e5e8b2d3-88d7-4394-b030-d33e0621d599}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

@@ -2,7 +2,7 @@
 
 #ifdef jetbridgeFallback
 
-#include "jetbridge\client.h"
+#include "..\jetbridge\Client.h"
 #include "LVars-A310.h"
 #include "LVars-Fbw.h"
 #include "LVars-Kodiak100.h"

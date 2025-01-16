@@ -3,8 +3,8 @@
 
 #ifdef vJoyFallback
 
-#include "..\vJoy_SDK\inc\public.h"
-#include "..\vJoy_SDK\inc\vjoyinterface.h"
+#include "..\..\vJoy_SDK\inc\public.h"
+#include "..\..\vJoy_SDK\inc\vjoyinterface.h"
 
 const char* VJOY_CONFIG_EXE = "C:\\Program Files\\vJoy\\x64\\vJoyConf.exe (Run as Admin)";
 
