@@ -1291,7 +1291,7 @@ void picoInit()
         else if (strcmp(joystick[id].name, "Pico G1000") == 0 && joystick[id].initialised) {
             g1000Id = id;
         }
-        else if (strncmp(joystick[id].name, "Alpha", 4) == 0 && joystick[id].initialised) {
+        else if (strcmp(joystick[id].name, "Alpha Flight Controls") == 0 && joystick[id].initialised) {
             alphaId = id;
         }
     }

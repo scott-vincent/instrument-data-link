@@ -139,15 +139,6 @@ void initJoysticks()
         joystick[id].axisCount = joyCaps.wNumAxes;
         joystick[id].buttonCount = joyCaps.wNumButtons;
 
-        if (strncmp(joystick[id].name, "CircuitPython", 13) == 0) {
-            if (joystick[id].axisCount == 3) {
-                strcpy(joystick[id].name, "Pico G1000");
-            }
-            else {
-                strcpy(joystick[id].name, "Pico Switchbox");
-            }
-        }
-
         //printf("%d: %s (%04x, %04x) has %d axes and %d buttons\n",
         //    id, joystick[id].name, joystick[id].mid, joystick[id].pid, joystick[id].axisCount, joystick[id].buttonCount);
 
